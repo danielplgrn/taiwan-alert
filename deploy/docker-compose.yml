@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  taiwan-alert:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: taiwan-alert
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"   # localhost only — access via SSH tunnel
+    env_file:
+      - ../.env
+    volumes:
+      - alert-data:/opt/taiwan-alert/data
+
+volumes:
+  alert-data:

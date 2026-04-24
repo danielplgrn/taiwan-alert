@@ -1,0 +1,21 @@
+# Taiwan Strait Early Warning System — Cron Schedule
+# All times in Asia/Taipei (UTC+8)
+# Install: crontab deploy/crontab.txt
+
+SHELL=/bin/bash
+TZ=Asia/Taipei
+
+# Every 30 min: airspace, maritime, taiwan readiness, cyber/infra
+*/30 * * * * cd /opt/taiwan-alert && python3 collect.py --group 30min >> /var/log/taiwan-alert.log 2>&1
+
+# Every 2 hours: diplomatic, financial
+0 */2 * * * cd /opt/taiwan-alert && python3 collect.py --group 2hours >> /var/log/taiwan-alert.log 2>&1
+
+# Every 6 hours: rhetoric & political
+0 1,7,13,19 * * * cd /opt/taiwan-alert && python3 collect.py --group 6hours >> /var/log/taiwan-alert.log 2>&1
+
+# Daily at 9:00 AM TPE: X/OSINT military, allied response
+0 9 * * * cd /opt/taiwan-alert && python3 collect.py --group daily_9am >> /var/log/taiwan-alert.log 2>&1
+
+# Log rotation — keep 7 days
+0 0 * * * find /var/log/taiwan-alert.log -size +10M -exec truncate -s 0 {} \;

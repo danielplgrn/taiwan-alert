@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1720">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TW Alert">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>Taiwan Strait EWS</title>
+  <link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+  <div id="app">
+    <header id="state-banner" class="green">
+      <div class="banner-content">
+        <h1 id="action-label">Monitor</h1>
+        <p id="convergence-count">0 of 10 signals active</p>
+        <p id="state-detail">Loading...</p>
+        <p id="action-guidance" class="hidden"></p>
+        <div id="degraded-badge" class="hidden">DEGRADED — some feeds unavailable</div>
+      </div>
+    </header>
+
+    <div id="meta-bar">
+      <span id="last-updated">Last updated: —</span>
+      <span id="state-since">State since: —</span>
+      <span class="threshold-control" title="Set via TAIWAN_ALERT_THRESHOLD env var on the droplet. Restart the container to apply.">
+        Alert threshold: <span id="threshold-value">—</span> signals
+      </span>
+    </div>
+
+    <main>
+      <section id="primary-section">
+        <h2>Primary Indicators</h2>
+        <div id="primary-grid" class="indicator-grid"></div>
+      </section>
+
+      <section id="secondary-section">
+        <h2>Secondary Indicators</h2>
+        <div id="secondary-grid" class="indicator-grid"></div>
+      </section>
+    </main>
+
+    <section id="legend">
+      <h2>Key</h2>
+      <div class="key-card">
+        <div class="key-group">
+          <div class="key-group-title">Alert Levels</div>
+          <div class="key-row"><span class="key-label"><span class="key-dot" style="background:var(--green)"></span> Green</span> Monitor. Normal background conditions. No action needed.</div>
+          <div class="key-row"><span class="key-label"><span class="key-dot" style="background:var(--yellow)"></span> Yellow</span> Prepare. Unusual activity detected. Review departure plans and verify essentials.</div>
+          <div class="key-row"><span class="key-label"><span class="key-dot" style="background:var(--amber)"></span> Amber</span> Leave within 48h. Credible threat confirmed by multiple independent signals.</div>
+          <div class="key-row"><span class="key-label"><span class="key-dot" style="background:var(--red)"></span> Red</span> Shelter. Imminent or ongoing hostile action. Execute emergency plan.</div>
+        </div>
+        <div class="key-group">
+          <div class="key-group-title">Indicator Status</div>
+          <div class="key-row"><span class="key-label"><span class="card-status active" style="font-size:0.65rem">active</span></span> Signal detected above threshold.</div>
+          <div class="key-row"><span class="key-label"><span class="card-status inactive" style="font-size:0.65rem">inactive</span></span> Checked and found nothing unusual.</div>
+          <div class="key-row"><span class="key-label"><span class="card-status no-data" style="font-size:0.65rem">no data</span></span> Source could not be reached or was skipped. The signal may be missing, not absent.</div>
+        </div>
+        <div class="key-group">
+          <div class="key-group-title">Confidence</div>
+          <div class="key-row"><span class="key-label"><span class="confidence-badge high">high</span></span> Multiple sources or strong keyword matches confirm this signal.</div>
+          <div class="key-row"><span class="key-label"><span class="confidence-badge medium">medium</span></span> One credible source or moderate keyword matches.</div>
+          <div class="key-row"><span class="key-label"><span class="confidence-badge low">low</span></span> Weak or unverified signal from a single source.</div>
+        </div>
+        <div class="key-group">
+          <div class="key-group-title">System Indicators</div>
+          <div class="key-row"><span class="key-label" style="color:var(--amber)">Degraded</span> One or more data feeds are unavailable. Alert state may be based on incomplete data. No data does not mean no threat.</div>
+          <div class="key-row"><span class="key-label">Cooldown</span> After escalating, the system waits before downgrading (4h from Yellow, 6h from Amber, 12h from Red) to confirm the threat has truly passed.</div>
+          <div class="key-row"><span class="key-label">Primary</span> Indicators that directly measure threat: military buildup, airspace/maritime restrictions, Taiwan readiness, destructive cyber. At least one must be active to reach Amber.</div>
+          <div class="key-row"><span class="key-label">Secondary</span> Context indicators: diplomatic advisories, allied posture, rhetoric, financial stress. Provide supporting evidence but cannot trigger Amber alone.</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Taiwan Strait Early Warning System — Personal use only</p>
+    </footer>
+  </div>
+
+  <script src="app.js?v=2"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

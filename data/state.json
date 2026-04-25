@@ -1,11 +1,11 @@
 {
   "alert_state": "yellow",
   "alert_label": "Prepare",
-  "score_detail": "0 indicator(s) active (cooldown: holding yellow for 2.0h more before downgrading)",
+  "score_detail": "0 indicator(s) active (cooldown: holding yellow for 0.1h more before downgrading)",
   "degraded": false,
   "degraded_feeds": [],
   "state_since": 1777140503.7358558,
-  "evaluated_at": "2026-04-25T20:08:04.686968+00:00",
+  "evaluated_at": "2026-04-25T22:05:22.355305+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "",
@@ -18,7 +18,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked US, UK, Japan, Australia travel advisories for Taiwan. All at normal levels (3 of 4 sources reachable).",
-      "last_checked": "2026-04-25T20:08:02.950450+00:00",
+      "last_checked": "2026-04-25T22:05:20.084723+00:00",
       "feed_healthy": true,
       "is_destructive": false
     },
@@ -30,7 +30,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked TWD/USD exchange rate and TAIEX index via Yahoo Finance. Both within normal volatility range.",
-      "last_checked": "2026-04-25T20:08:04.686839+00:00",
+      "last_checked": "2026-04-25T22:05:22.355154+00:00",
       "feed_healthy": true,
       "is_destructive": false
     },

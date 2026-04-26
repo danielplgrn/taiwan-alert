@@ -5,32 +5,20 @@
   "degraded": false,
   "degraded_feeds": [],
   "state_since": 1777162110.482414,
-  "evaluated_at": "2026-04-26T10:12:00.859327+00:00",
+  "evaluated_at": "2026-04-26T12:08:24.450770+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "",
   "indicators": {
-    "7": {
-      "id": 7,
-      "name": "Diplomatic Signals",
-      "description": "Travel advisories upgraded, China restricts travel to Taiwan",
+    "9": {
+      "id": 9,
+      "name": "Rhetoric & Political Pressure",
+      "description": "State media narrative shift, political crisis, coercion escalation",
       "category": "secondary",
       "active": false,
       "confidence": "none",
-      "summary": "Checked US, UK, Japan, Australia travel advisories for Taiwan. All at normal levels (3 of 4 sources reachable).",
-      "last_checked": "2026-04-26T10:11:59.048791+00:00",
-      "feed_healthy": true,
-      "is_destructive": false
-    },
-    "10": {
-      "id": 10,
-      "name": "Financial Stress",
-      "description": "TWD/USD spike, TAIEX drop beyond normal volatility",
-      "category": "secondary",
-      "active": false,
-      "confidence": "none",
-      "summary": "Checked TWD/USD exchange rate and TAIEX index via Yahoo Finance. Both within normal volatility range.",
-      "last_checked": "2026-04-26T10:12:00.859166+00:00",
+      "summary": "Checked Xinhua, Global Times, Focus Taiwan, Taipei Times for rhetoric shifts or political crisis keywords. Normal levels (3 of 4 feeds reachable).",
+      "last_checked": "2026-04-26T12:08:24.450667+00:00",
       "feed_healthy": true,
       "is_destructive": false
     },
@@ -106,6 +94,18 @@
       "feed_healthy": true,
       "is_destructive": false
     },
+    "7": {
+      "id": 7,
+      "name": "Diplomatic Signals",
+      "description": "Travel advisories upgraded, China restricts travel to Taiwan",
+      "category": "secondary",
+      "active": false,
+      "confidence": "none",
+      "summary": "Not yet checked",
+      "last_checked": "",
+      "feed_healthy": true,
+      "is_destructive": false
+    },
     "8": {
       "id": 8,
       "name": "Allied Response",
@@ -118,10 +118,10 @@
       "feed_healthy": true,
       "is_destructive": false
     },
-    "9": {
-      "id": 9,
-      "name": "Rhetoric & Political Pressure",
-      "description": "State media narrative shift, political crisis, coercion escalation",
+    "10": {
+      "id": 10,
+      "name": "Financial Stress",
+      "description": "TWD/USD spike, TAIEX drop beyond normal volatility",
       "category": "secondary",
       "active": false,
       "confidence": "none",

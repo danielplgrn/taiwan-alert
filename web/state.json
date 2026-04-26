@@ -1,17 +1,27 @@
 {
   "alert_state": "yellow",
   "alert_label": "Prepare",
-  "score_detail": "0 indicator(s) active (cooldown: holding yellow for 4.0h more before downgrading)",
-  "degraded": true,
-  "degraded_feeds": [
-    "Logistics & Mobilization"
-  ],
+  "score_detail": "0 indicator(s) active (cooldown: holding yellow for 2.0h more before downgrading)",
+  "degraded": false,
+  "degraded_feeds": [],
   "state_since": 1777226364.0695162,
-  "evaluated_at": "2026-04-26T17:59:44.087605+00:00",
+  "evaluated_at": "2026-04-26T20:02:14.773337+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "",
   "indicators": {
+    "9": {
+      "id": 9,
+      "name": "Rhetoric & Political Pressure",
+      "description": "State media narrative shift, political crisis, coercion escalation",
+      "category": "secondary",
+      "active": false,
+      "confidence": "none",
+      "summary": "Checked Xinhua, Global Times, Focus Taiwan, Taipei Times for rhetoric shifts or political crisis keywords. Normal levels (3 of 4 feeds reachable).",
+      "last_checked": "2026-04-26T20:02:14.773268+00:00",
+      "feed_healthy": true,
+      "is_destructive": false
+    },
     "1": {
       "id": 1,
       "name": "Force Concentration",
@@ -19,8 +29,8 @@
       "category": "primary",
       "active": false,
       "confidence": "none",
-      "summary": "Checked Taiwan MND for ship/aircraft/missile repositioning. No unusual concentration. Failed: X/OSINT (Apify fetch failed), Japan MOD (blocked).",
-      "last_checked": "2026-04-26T17:59:43.955000+00:00",
+      "summary": "Not yet checked",
+      "last_checked": "",
       "feed_healthy": true,
       "is_destructive": false
     },
@@ -31,20 +41,8 @@
       "category": "primary",
       "active": false,
       "confidence": "none",
-      "summary": "Could not check \u2014 X/OSINT is the primary source for logistics signals. Failed: X/OSINT (Apify fetch failed), Japan MOD (blocked).",
-      "last_checked": "2026-04-26T17:59:43.955031+00:00",
-      "feed_healthy": false,
-      "is_destructive": false
-    },
-    "8": {
-      "id": 8,
-      "name": "Allied Response",
-      "description": "US/Japan military repositioning, posture changes",
-      "category": "secondary",
-      "active": false,
-      "confidence": "none",
-      "summary": "Checked Taiwan MND for US/Japan military repositioning. No unusual posture changes.",
-      "last_checked": "2026-04-26T17:59:43.955039+00:00",
+      "summary": "Not yet checked",
+      "last_checked": "",
       "feed_healthy": true,
       "is_destructive": false
     },
@@ -108,10 +106,10 @@
       "feed_healthy": true,
       "is_destructive": false
     },
-    "9": {
-      "id": 9,
-      "name": "Rhetoric & Political Pressure",
-      "description": "State media narrative shift, political crisis, coercion escalation",
+    "8": {
+      "id": 8,
+      "name": "Allied Response",
+      "description": "US/Japan military repositioning, posture changes",
       "category": "secondary",
       "active": false,
       "confidence": "none",

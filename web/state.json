@@ -5,7 +5,7 @@
   "degraded": false,
   "degraded_feeds": [],
   "state_since": 1777241258.8930333,
-  "evaluated_at": "2026-04-27T07:43:34.779818+00:00",
+  "evaluated_at": "2026-04-27T13:10:07.983375+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "",
@@ -18,7 +18,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Xinhua, Global Times, Focus Taiwan, Taipei Times for rhetoric shifts or political crisis keywords. Normal levels (3 of 4 feeds reachable).",
-      "last_checked": "2026-04-27T07:43:34.779766+00:00",
+      "last_checked": "2026-04-27T13:10:07.983311+00:00",
       "feed_healthy": true,
       "is_destructive": false
     },

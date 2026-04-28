@@ -211,7 +211,7 @@ def _fetch_osint_tweets() -> list[str] | None:
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=300) as resp:
             items = json.loads(resp.read().decode("utf-8"))
             return [
                 f"{item.get('full_text', '')} {item.get('text', '')}"

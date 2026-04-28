@@ -50,6 +50,23 @@ OSINT_ACCOUNTS = [
     "PLaboringCN",
 ]
 
+# Taiwan/PRC-specific context — OSINT accounts post about every conflict in the world,
+# so generic terms like "aircraft carrier" must co-occur with one of these to count.
+# Local Taiwan/Japan gov sources are already bounded by URL, so this filter only
+# applies to the OSINT tweet stream.
+TAIWAN_CONTEXT_PATTERNS = [
+    "taiwan", "taipei", "formosa", "fujian", "guangdong", "kaohsiung",
+    "cross-strait", "cross strait", "strait of taiwan", "taiwan strait",
+    " pla ", " plan ", " plaaf ", "plarf", "pla navy", "pla air",
+    "indo-pacific command", "indopacom", "tpe ", "rocaf",
+]
+
+
+def _taiwan_relevant(text: str) -> bool:
+    lower = text.lower()
+    return any(p in lower for p in TAIWAN_CONTEXT_PATTERNS)
+
+
 FORCE_KEYWORDS = [
     "pla navy", "plan fleet", "amphibious", "landing ship", "lst",
     "fujian port", "guangdong port", "naval staging", "ship concentration",
@@ -94,6 +111,8 @@ def collect() -> list:
     if osint_texts is not None:
         source_count += 1
         for text in osint_texts:
+            if not _taiwan_relevant(text):
+                continue
             all_force_hits.extend(keyword_match(text, FORCE_KEYWORDS))
             all_logistics_hits.extend(keyword_match(text, LOGISTICS_KEYWORDS))
             all_allied_hits.extend(keyword_match(text, ALLIED_KEYWORDS))

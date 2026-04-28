@@ -224,6 +224,25 @@ def load_previous_state() -> Optional[SystemState]:
     try:
         with open(STATE_FILE) as f:
             d = json.load(f)
+        raw_indicators = d.get("indicators", {})
+        indicators: dict[int, IndicatorReading] = {}
+        for k, v in raw_indicators.items():
+            try:
+                ind_id = int(k)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(v, IndicatorReading):
+                indicators[ind_id] = v
+            elif isinstance(v, dict):
+                indicators[ind_id] = IndicatorReading(
+                    id=v.get("id", ind_id),
+                    active=v.get("active", False),
+                    confidence=v.get("confidence", "none"),
+                    summary=v.get("summary", ""),
+                    last_checked=v.get("last_checked", ""),
+                    feed_healthy=v.get("feed_healthy", True),
+                    is_destructive=v.get("is_destructive", False),
+                )
         return SystemState(
             alert_state=AlertState(d["alert_state"]),
             alert_label=d.get("alert_label", ""),
@@ -235,7 +254,7 @@ def load_previous_state() -> Optional[SystemState]:
             overt_hostilities=d.get("overt_hostilities", False),
             threshold=d.get("threshold", ALERT_THRESHOLD),
             last_alerted_state=d.get("last_alerted_state", ""),
-            indicators=d.get("indicators", {}),
+            indicators=indicators,
         )
     except (json.JSONDecodeError, KeyError, ValueError):
         return None

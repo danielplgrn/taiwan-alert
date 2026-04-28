@@ -235,6 +235,7 @@ def load_previous_state() -> Optional[SystemState]:
             overt_hostilities=d.get("overt_hostilities", False),
             threshold=d.get("threshold", ALERT_THRESHOLD),
             last_alerted_state=d.get("last_alerted_state", ""),
+            indicators=d.get("indicators", {}),
         )
     except (json.JSONDecodeError, KeyError, ValueError):
         return None

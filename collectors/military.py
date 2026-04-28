@@ -1,37 +1,34 @@
 """
-Collector: Military indicators
-  #1 Force Concentration
-  #2 Logistics & Mobilization
-  #8 Allied Response
+Military / OSINT collector — sole owner of indicators 1, 2, 8.
 
-Pipeline (post-Codex-debate refactor):
+Pipeline (LLM-first; Option B.1 architecture, post-Codex round 2):
 
-    OSINT tweets ──► dedup events ──► Taiwan-context filter ──┐
-    Taiwan MND ────────────────────────────────────────────────┤
-    Japan MOD ─────────────────────────────────────────────────┤
-                                                               │
-                       ┌───────────────────────────────────────┘
-                       ▼
-        ┌──────────────────────────────────────┐
-        │ match_strong  → concrete-action hits │  ─► evidence_class="concrete"
-        │                  (observed-action +  │      activates indicator immediately
-        │                   geography gates)   │
-        └──────────────────────────────────────┘
-        ┌──────────────────────────────────────┐
-        │ match_weak    → vocabulary hits      │
-        │                  (sentence-scoped    │
-        │                   negative filter)   │
-        └──────────────────────────────────────┘
-                       ▼
-        Source-family corroboration check (≥2 distinct families)
-                       ▼
-        LLM adjudicator (Claude Haiku) on WEAK-only path
-                       ▼
-                IndicatorReading
+    OSINT tweets ──► dedup into clusters ──► chunks (representative only)
+    Taiwan MND   ──────────────────────────► chunks
+    Japan MOD    ──────────────────────────► chunks
+                                                │
+                                                ▼
+                ┌───────────────────────────────┴─────────────────────┐
+                │                                                       │
+                ▼                                                       ▼
+    LLM evidence extractor (Opus 4.7)              STRONG keyword detector
+    -- returns evidence refs --                    -- deterministic, parallel --
+    Code validates verbatim quotes,                Fires authoritatively when
+    drops manipulation_flag/speculation/           a categorical act appears
+    hypothetical, groups by cluster.
 
-    MND quantitative counts ──► baseline (median + 2*MAD)
+                                  │
                                   ▼
-                          evidence_class="anomaly"
+                    Deterministic reducer derives:
+                       active, evidence_class, confidence
+                    LLM-derived activation OR STRONG hit OR anomaly path
+                                  │
+                                  ▼
+                     IndicatorReading (×3: 1, 2, 8)
+
+    Anomaly path (indicator #1 only):
+        MND aircraft/vessel counts ──► MAD anomaly check ──► concrete-anomaly fact
+        (LLM never sees baseline data; this is fully deterministic)
 """
 
 from __future__ import annotations
@@ -41,23 +38,18 @@ import logging
 import urllib.request
 import urllib.error
 
-from collectors.base import (
-    fetch_url, make_reading, safe_collect, now_iso,
-)
+from collectors.base import fetch_url, make_reading, safe_collect, now_iso
 from collectors.keywords import (
-    STRONG_KEYWORDS,
-    FORCE_WEAK, LOGISTICS_WEAK, ALLIED_WEAK,
-    KeywordHit,
-    match_strong, match_weak,
-    unique_keywords, hits_by_source_family,
-    is_negative_context,
+    detect_strong, StrongHit,
+    INDICATOR_1_STRONG, INDICATOR_2_STRONG, INDICATOR_8_STRONG,
 )
-from analysis.dedup import dedup_events
+from analysis.dedup import cluster_events, TweetMember, Cluster
 from analysis.baseline import (
     parse_mnd_counts, append_baseline, check_anomaly, now_taipei_date,
 )
-from analysis.llm_adjudicator import (
-    adjudicate_weak_signal, WeakMatchSnippet,
+from analysis.llm_evidence_extractor import (
+    extract_evidence, InputChunk, EvidenceRef, ExtractionResult,
+    SUPPORTED_INDICATORS,
 )
 from config import APIFY_API_TOKEN, APIFY_MAX_CHARGE_USD
 
@@ -65,13 +57,7 @@ log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# OSINT account tiers
-#
-# TIER1 = direct observers / known credibility for PLA + cross-strait.
-# TIER2 = commentary / aggregator accounts that often retell others' work.
-#
-# Tiering is gut-feel and curated by hand — there is no public credibility
-# ranking we'd trust enough to wire into scoring. Revisit periodically.
+# OSINT account tiers — manually curated source-credibility split.
 # ---------------------------------------------------------------------------
 
 OSINT_TIER1 = ["detresfa_", "IndoPac_Info", "MT_Anderson", "sentdefender"]
@@ -81,64 +67,20 @@ OSINT_TIER2 = [
 ]
 OSINT_ACCOUNTS = OSINT_TIER1 + OSINT_TIER2
 
-
-# Source families for cross-source corroboration
-SOURCE_FAMILY_GOV = "GOV"
-SOURCE_FAMILY_OSINT_T1 = "OSINT_TIER1"
-SOURCE_FAMILY_OSINT_T2 = "OSINT_TIER2"
+FAMILY_GOV = "GOV"
+FAMILY_OSINT_T1 = "OSINT_TIER1"
+FAMILY_OSINT_T2 = "OSINT_TIER2"
 
 
 def _osint_source_id(handle: str) -> str:
     return f"osint:{handle.lstrip('@').lower()}"
 
 
-def _build_family_map() -> dict[str, str]:
-    """Map source identifier -> family name."""
-    family: dict[str, str] = {
-        "MND": SOURCE_FAMILY_GOV,
-        "Japan MOD": SOURCE_FAMILY_GOV,
-        "INDOPACOM": SOURCE_FAMILY_GOV,
-    }
-    for h in OSINT_TIER1:
-        family[_osint_source_id(h)] = SOURCE_FAMILY_OSINT_T1
-    for h in OSINT_TIER2:
-        family[_osint_source_id(h)] = SOURCE_FAMILY_OSINT_T2
-    return family
-
-
-# ---------------------------------------------------------------------------
-# Per-indicator STRONG keyword routing.
-# STRONG_KEYWORDS in keywords.py covers many indicators (diplomatic, airspace,
-# Taiwan readiness, etc.). We route only the ones relevant to indicators
-# 1, 2, 8 here. Others are handled by their respective collectors.
-# ---------------------------------------------------------------------------
-
-INDICATOR_1_STRONG = {
-    "port closure", "harbor closure",  # geography-gated to PRC ports in keywords.py
-}
-
-INDICATOR_2_STRONG = {
-    "civilian ferry requisition", "civilian ferries requisitioned",
-    "ro-ro ship requisition", "ro-ro requisitioned",
-    "civilian vessel commandeered", "merchant fleet mobilized",
-    "reserve call-up order", "reservist mobilization order",
-    "reserve activation order", "civilian conscription order",
-    "militia mobilization order", "general mobilization",
-    "blood donation drive military", "blood drive military",
-    "mass casualty preparation",
-}
-
-# Indicator 8 has no STRONG term mapping — Allied Response signals are
-# detected via cross-source WEAK corroboration with adjudication.
-INDICATOR_8_STRONG: set[str] = set()
-
-
-# WEAK keyword thresholds (unique terms required) — escalation rule:
-#   ≥1 STRONG keyword from any source, OR
-#   ≥3 unique WEAK keywords from ≥2 distinct source families,
-#   with negative-context sentences excluded and LLM adjudicator pass.
-WEAK_UNIQUE_THRESHOLD = 3
-WEAK_FAMILY_THRESHOLD = 2
+def _osint_family(handle: str) -> str:
+    h = handle.lstrip("@").lower()
+    if h in {a.lower() for a in OSINT_TIER1}:
+        return FAMILY_OSINT_T1
+    return FAMILY_OSINT_T2
 
 
 # ---------------------------------------------------------------------------
@@ -154,17 +96,12 @@ JAPAN_MOD_URL = "https://www.mod.go.jp/msdf/en/release/"
 
 
 # ---------------------------------------------------------------------------
-# OSINT fetch — Apify tweet-scraper
+# Apify OSINT fetch (correct schema; cost-capped per run)
 # ---------------------------------------------------------------------------
 
 def _fetch_osint_tweets() -> list[dict] | None:
     """
-    Fetch recent tweets from curated OSINT accounts via Apify.
-
-    Returns a list of {"text": str, "author": str} dicts, or None on
-    failure. Uses the schema-correct Apify input fields (twitterHandles,
-    maxItems) and sends maxTotalChargeUsd as a URL query param so it
-    actually caps the run cost.
+    Returns a list of {"text": str, "author": str} or None on failure.
     """
     if not APIFY_API_TOKEN:
         log.warning("APIFY_API_TOKEN not set — skipping X/OSINT collection")
@@ -187,8 +124,7 @@ def _fetch_osint_tweets() -> list[dict] | None:
         f"&maxItems={max_items}"
     )
     req = urllib.request.Request(
-        url,
-        data=payload,
+        url, data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
@@ -207,7 +143,6 @@ def _fetch_osint_tweets() -> list[dict] | None:
         text = (item.get("full_text") or item.get("text") or "").strip()
         if not text:
             continue
-        # Author handle can show up under several keys depending on actor build
         author = (
             (item.get("author") or {}).get("userName")
             or (item.get("user") or {}).get("userName")
@@ -220,57 +155,366 @@ def _fetch_osint_tweets() -> list[dict] | None:
 
 
 # ---------------------------------------------------------------------------
-# Collection logic
+# Chunk-builder: representative-only OSINT, gov text as single chunks
+# ---------------------------------------------------------------------------
+
+def _build_chunks(
+    osint_clusters: list[Cluster],
+    mnd_text: str | None,
+    japan_text: str | None,
+) -> tuple[list[InputChunk], dict[str, str]]:
+    """
+    Build the chunk list to send to the LLM. Representative-only for OSINT.
+    Returns (chunks, chunk_id_to_cluster_id) — the second map lets the
+    reducer compute corroboration math on cluster membership.
+    """
+    chunks: list[InputChunk] = []
+    chunk_to_cluster: dict[str, str] = {}
+    cid = 0
+
+    def next_id() -> str:
+        nonlocal cid
+        cid += 1
+        return f"c{cid:03d}"
+
+    # OSINT — one chunk per cluster, using the representative member
+    for cluster in osint_clusters:
+        if cluster.representative is None:
+            continue
+        rep = cluster.representative
+        chunk_id = next_id()
+        family = _osint_family(rep.author) if rep.author else FAMILY_OSINT_T2
+        source_id = _osint_source_id(rep.author) if rep.author else "osint:unknown"
+        chunks.append(InputChunk(
+            chunk_id=chunk_id,
+            source=source_id,
+            family=family,
+            text=rep.text,
+            cluster_id=cluster.cluster_id,
+            count_in_cluster=cluster.size,
+        ))
+        chunk_to_cluster[chunk_id] = cluster.cluster_id
+
+    # Gov sources — single large chunk each
+    if mnd_text:
+        chunk_id = next_id()
+        chunks.append(InputChunk(
+            chunk_id=chunk_id,
+            source="MND",
+            family=FAMILY_GOV,
+            text=mnd_text,
+            cluster_id=f"gov:{chunk_id}",
+            count_in_cluster=1,
+        ))
+        chunk_to_cluster[chunk_id] = f"gov:{chunk_id}"
+
+    if japan_text:
+        chunk_id = next_id()
+        chunks.append(InputChunk(
+            chunk_id=chunk_id,
+            source="Japan MOD",
+            family=FAMILY_GOV,
+            text=japan_text,
+            cluster_id=f"gov:{chunk_id}",
+            count_in_cluster=1,
+        ))
+        chunk_to_cluster[chunk_id] = f"gov:{chunk_id}"
+
+    return chunks, chunk_to_cluster
+
+
+# ---------------------------------------------------------------------------
+# Deterministic reducer — turns LLM evidence + STRONG hits + anomaly into
+# IndicatorReading(s). The LLM does NOT determine indicator state here.
+# ---------------------------------------------------------------------------
+
+# Per-indicator activation rules (in code, not LLM):
+#   observed_act + GOV present                         → active, concrete, high
+#   observed_act + ≥1 OSINT_TIER1 cluster (no GOV)     → active, concrete, medium
+#   observed_act + only OSINT_TIER2 clusters            → active, keyword, low
+#   vocabulary_only + ≥3 distinct clusters across ≥2 families → active, keyword, low
+#   else                                                → inactive
+# STRONG hit on the same chunks → forces active=True regardless (parallel detector).
+# Anomaly path → active=True with evidence_class=anomaly, confidence=high.
+
+def _reduce_indicator(
+    indicator_id: int,
+    chunks: list[InputChunk],
+    evidence: list[EvidenceRef],
+    strong_hits: list[StrongHit],
+    chunk_lookup: dict[str, InputChunk],
+    chunk_to_cluster: dict[str, str],
+    indicator_strong_set: set[str],
+    sources_checked_str: str,
+    failed_str: str,
+    extractor_available: bool,
+    manipulation_flagged: int,
+    anomaly_status: str | None = None,
+    anomaly_explanation: str | None = None,
+    indicator_name: str = "",
+):
+    """Apply Option-B.1 rules to produce an IndicatorReading for one indicator."""
+
+    # ---------- Anomaly path (deterministic, separate from LLM) ----------
+    if anomaly_status in ("anomaly", "high_anomaly"):
+        return make_reading(
+            indicator_id=indicator_id,
+            active=True,
+            confidence="high" if anomaly_status == "high_anomaly" else "medium",
+            evidence_class="anomaly",
+            summary=(
+                f"Quantitative anomaly detected — {anomaly_explanation} "
+                f"Checked {sources_checked_str}.{failed_str}"
+            ),
+            rationale=anomaly_explanation or "",
+            evidence_quotes=[],
+            manipulation_flagged_count=manipulation_flagged,
+            feed_healthy=True,
+        )
+
+    # ---------- STRONG keyword detector path (deterministic, parallel) ----------
+    relevant_strong = [h for h in strong_hits if h.keyword in indicator_strong_set]
+    if relevant_strong:
+        unique_terms = sorted({h.keyword for h in relevant_strong})
+        sources = sorted({h.source for h in relevant_strong})
+        evidence_quotes = [
+            {
+                "chunk_id": h.chunk_id,
+                "source": h.source,
+                "family": chunk_lookup.get(h.chunk_id, InputChunk("", h.source, "", "")).family if chunk_lookup else "",
+                "key_phrase": h.keyword,
+                "claim_type": "observed_act",
+                "directness": "reported_event",
+                "why": "STRONG keyword detector match",
+            }
+            for h in relevant_strong[:5]
+        ]
+        return make_reading(
+            indicator_id=indicator_id,
+            active=True,
+            confidence="high",
+            evidence_class="concrete",
+            summary=(
+                f"Concrete signal (STRONG detector) — {', '.join(unique_terms[:5])} "
+                f"in {', '.join(sources[:3])}. Checked {sources_checked_str}.{failed_str}"
+            ),
+            rationale=f"Deterministic STRONG keyword match: {', '.join(unique_terms[:3])}",
+            evidence_quotes=evidence_quotes,
+            manipulation_flagged_count=manipulation_flagged,
+            feed_healthy=True,
+        )
+
+    # ---------- LLM-derived path ----------
+    # Filter validated evidence for this indicator
+    indicator_evidence = [
+        ev for ev in evidence
+        if ev.validated
+        and ev.indicator_id == indicator_id
+        and not ev.manipulation_flag
+        and ev.claim_type not in ("speculation", "unrelated")
+        and ev.directness != "hypothetical"
+    ]
+
+    if not indicator_evidence:
+        # Inactive
+        if not extractor_available:
+            summary = (
+                f"LLM extractor unavailable — only deterministic paths checked. "
+                f"No STRONG keyword hits, no anomaly. {sources_checked_str}.{failed_str}"
+            )
+        else:
+            summary = (
+                f"Checked {sources_checked_str}. No qualifying evidence "
+                f"(after dropping speculation/hypothetical/manipulation chunks).{failed_str}"
+            )
+        return make_reading(
+            indicator_id=indicator_id,
+            active=False,
+            confidence="none",
+            evidence_class="keyword",
+            summary=summary,
+            rationale="",
+            evidence_quotes=[],
+            manipulation_flagged_count=manipulation_flagged,
+            feed_healthy=extractor_available or any(c.family == FAMILY_GOV for c in chunks),
+        )
+
+    # Group surviving evidence by cluster_id (collapses retweets)
+    clusters_per_evidence: dict[str, list[EvidenceRef]] = {}
+    for ev in indicator_evidence:
+        ck = chunk_to_cluster.get(ev.chunk_id, ev.chunk_id)
+        clusters_per_evidence.setdefault(ck, []).append(ev)
+
+    # Compute family coverage
+    families_with_evidence: set[str] = set()
+    for ev in indicator_evidence:
+        chunk = chunk_lookup.get(ev.chunk_id)
+        if chunk:
+            families_with_evidence.add(chunk.family)
+
+    has_gov = FAMILY_GOV in families_with_evidence
+    has_t1 = FAMILY_OSINT_T1 in families_with_evidence
+    only_t2 = (
+        FAMILY_OSINT_T2 in families_with_evidence
+        and not has_gov and not has_t1
+    )
+
+    has_observed_act = any(ev.claim_type == "observed_act" for ev in indicator_evidence)
+    vocabulary_only_clusters = {
+        ck for ck, evs in clusters_per_evidence.items()
+        if all(ev.claim_type == "vocabulary_only" for ev in evs)
+    }
+
+    # Apply rules
+    active = False
+    evidence_class = "keyword"
+    confidence = "none"
+    summary = f"Checked {sources_checked_str}.{failed_str}"
+
+    if has_observed_act and has_gov:
+        active = True
+        evidence_class = "concrete"
+        confidence = "high"
+        summary = (
+            f"Observed act corroborated by GOV source. "
+            f"Checked {sources_checked_str}.{failed_str}"
+        )
+    elif has_observed_act and has_t1:
+        active = True
+        evidence_class = "concrete"
+        confidence = "medium"
+        summary = (
+            f"Observed act corroborated by tier-1 OSINT. "
+            f"Checked {sources_checked_str}.{failed_str}"
+        )
+    elif has_observed_act and only_t2:
+        active = True
+        evidence_class = "keyword"
+        confidence = "low"
+        summary = (
+            f"Observed act from tier-2 OSINT only — low confidence. "
+            f"Checked {sources_checked_str}.{failed_str}"
+        )
+    elif (
+        len(vocabulary_only_clusters) >= 3
+        and len(families_with_evidence) >= 2
+    ):
+        active = True
+        evidence_class = "keyword"
+        confidence = "low"
+        summary = (
+            f"Vocabulary convergence across {len(vocabulary_only_clusters)} clusters "
+            f"in {len(families_with_evidence)} families. "
+            f"Checked {sources_checked_str}.{failed_str}"
+        )
+    else:
+        # Below thresholds
+        active = False
+        evidence_class = "keyword"
+        confidence = "none"
+        summary = (
+            f"Evidence below thresholds — "
+            f"{len(indicator_evidence)} qualifying refs in {len(families_with_evidence)} "
+            f"families ({len(clusters_per_evidence)} clusters). "
+            f"Checked {sources_checked_str}.{failed_str}"
+        )
+
+    # Build evidence quote payload for the dashboard
+    evidence_quotes = []
+    for ev in indicator_evidence[:6]:
+        chunk = chunk_lookup.get(ev.chunk_id)
+        evidence_quotes.append({
+            "chunk_id": ev.chunk_id,
+            "source": chunk.source if chunk else "",
+            "family": chunk.family if chunk else "",
+            "key_phrase": ev.key_phrase,
+            "claim_type": ev.claim_type,
+            "directness": ev.directness,
+            "why": ev.why,
+        })
+
+    rationale = " ".join(
+        f"[{ev.directness}/{ev.claim_type}] {ev.why}"
+        for ev in indicator_evidence[:3]
+    )[:400]
+
+    return make_reading(
+        indicator_id=indicator_id,
+        active=active,
+        confidence=confidence,
+        evidence_class=evidence_class,
+        summary=summary,
+        rationale=rationale,
+        evidence_quotes=evidence_quotes,
+        manipulation_flagged_count=manipulation_flagged,
+        feed_healthy=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Main entry point
 # ---------------------------------------------------------------------------
 
 @safe_collect
 def collect() -> list:
-    family_map = _build_family_map()
     sources_checked: list[str] = []
     sources_failed: list[str] = []
-    source_count = 0
 
-    all_strong: list[KeywordHit] = []
-    all_weak_force: list[KeywordHit] = []
-    all_weak_logistics: list[KeywordHit] = []
-    all_weak_allied: list[KeywordHit] = []
-
-    # --- Source 1: Apify Twitter scraper ---
+    # ---------- Fetch ----------
     osint_items = _fetch_osint_tweets()
     if osint_items is not None:
         sources_checked.append("X/OSINT accounts")
-        source_count += 1
-
-        # Dedup retweets / paraphrases before any keyword matching
-        deduped_texts = dedup_events([item["text"] for item in osint_items])
-        # Re-attach authors by matching on text
-        text_to_author = {item["text"]: item["author"] for item in osint_items}
-        deduped = [(t, text_to_author.get(t, "")) for t in deduped_texts]
-
-        for text, author in deduped:
-            if not _osint_taiwan_relevant(text):
-                continue
-            source_id = _osint_source_id(author) if author else "osint:unknown"
-            all_strong.extend(match_strong(text, source_id))
-            all_weak_force.extend(match_weak(text, FORCE_WEAK, source_id))
-            all_weak_logistics.extend(match_weak(text, LOGISTICS_WEAK, source_id))
-            all_weak_allied.extend(match_weak(text, ALLIED_WEAK, source_id))
     elif not APIFY_API_TOKEN:
         sources_failed.append("X/OSINT (Apify token not configured)")
     else:
         sources_failed.append("X/OSINT (Apify fetch failed)")
 
-    # --- Source 2: Taiwan MND PLA activity page ---
     mnd_text = fetch_url(MND_PLA_URL, verify_ssl=False)
     if mnd_text:
         sources_checked.append("Taiwan MND")
-        source_count += 1
-        all_strong.extend(match_strong(mnd_text, "MND"))
-        all_weak_force.extend(match_weak(mnd_text, FORCE_WEAK, "MND"))
-        all_weak_logistics.extend(match_weak(mnd_text, LOGISTICS_WEAK, "MND"))
-        all_weak_allied.extend(match_weak(mnd_text, ALLIED_WEAK, "MND"))
+    else:
+        sources_failed.append("Taiwan MND (unreachable)")
 
-        # Quantitative baseline: count anomalies feed indicator #1 directly
+    japan_text = fetch_url(JAPAN_MOD_URL, verify_ssl=False)
+    if japan_text:
+        sources_checked.append("Japan MOD")
+    else:
+        sources_failed.append("Japan MOD (blocked)")
+
+    sources_checked_str = ", ".join(sources_checked) if sources_checked else "none"
+    failed_str = f" Failed: {', '.join(sources_failed)}." if sources_failed else ""
+
+    # ---------- Cluster OSINT ----------
+    osint_clusters: list[Cluster] = []
+    if osint_items:
+        members = [TweetMember(text=item["text"], author=item.get("author", "")) for item in osint_items]
+        osint_clusters = cluster_events(members)
+
+    # ---------- Build chunks ----------
+    chunks, chunk_to_cluster = _build_chunks(osint_clusters, mnd_text, japan_text)
+    chunk_lookup = {c.chunk_id: c for c in chunks}
+
+    # ---------- LLM evidence extraction ----------
+    extraction = extract_evidence(chunks)
+    if not extraction.available and extraction.error:
+        log.warning("LLM extractor unavailable: %s", extraction.error)
+    if extraction.dropped_for_injection:
+        log.warning(
+            "Pre-filter dropped %d chunks with obvious injection markers",
+            extraction.dropped_for_injection,
+        )
+
+    manipulation_flagged = sum(1 for ev in extraction.evidence if ev.manipulation_flag)
+
+    # ---------- STRONG keyword parallel detector ----------
+    strong_hits: list[StrongHit] = []
+    for c in chunks:
+        strong_hits.extend(detect_strong(c.text, c.source, chunk_id=c.chunk_id))
+
+    # ---------- Baseline anomaly (indicator #1 only, fully deterministic) ----------
+    aircraft_anomaly_status = None
+    aircraft_anomaly_explanation = None
+    if mnd_text:
         baseline_entry = parse_mnd_counts(mnd_text, today=now_taipei_date())
         try:
             append_baseline(baseline_entry)
@@ -278,233 +522,40 @@ def collect() -> list:
             log.warning("Could not persist baseline: %s", e)
         aircraft_anomaly = check_anomaly("aircraft", baseline_entry.aircraft)
         vessel_anomaly = check_anomaly("vessels", baseline_entry.vessels)
-    else:
-        sources_failed.append("Taiwan MND (unreachable)")
-        aircraft_anomaly = None
-        vessel_anomaly = None
+        # Take whichever metric is most anomalous
+        if aircraft_anomaly.status in ("anomaly", "high_anomaly"):
+            aircraft_anomaly_status = aircraft_anomaly.status
+            aircraft_anomaly_explanation = aircraft_anomaly.explanation
+        elif vessel_anomaly.status in ("anomaly", "high_anomaly"):
+            aircraft_anomaly_status = vessel_anomaly.status
+            aircraft_anomaly_explanation = vessel_anomaly.explanation
 
-    # --- Source 3: Japan MOD MSDF press releases ---
-    japan_text = fetch_url(JAPAN_MOD_URL, verify_ssl=False)
-    if japan_text:
-        sources_checked.append("Japan MOD")
-        source_count += 1
-        all_strong.extend(match_strong(japan_text, "Japan MOD"))
-        all_weak_force.extend(match_weak(japan_text, FORCE_WEAK, "Japan MOD"))
-        all_weak_allied.extend(match_weak(japan_text, ALLIED_WEAK, "Japan MOD"))
-    else:
-        sources_failed.append("Japan MOD (blocked)")
-
-    checked_str = ", ".join(sources_checked) if sources_checked else "none"
-    failed_str = f" Failed: {', '.join(sources_failed)}." if sources_failed else ""
-
-    # --- Indicator #1: Force Concentration ---
-    readings = [
-        _evaluate_indicator(
-            indicator_id=1,
-            indicator_name="Force Concentration",
-            strong_keyword_filter=INDICATOR_1_STRONG,
-            all_strong=all_strong,
-            weak_hits=all_weak_force,
-            family_map=family_map,
-            source_count=source_count,
-            checked_str=checked_str,
+    # ---------- Reduce per indicator ----------
+    readings = []
+    for indicator_id, indicator_strong_set, indicator_name in [
+        (1, INDICATOR_1_STRONG, "Force Concentration"),
+        (2, INDICATOR_2_STRONG, "Logistics & Mobilization"),
+        (8, INDICATOR_8_STRONG, "Allied Response"),
+    ]:
+        anomaly_for_this = (
+            (aircraft_anomaly_status, aircraft_anomaly_explanation)
+            if indicator_id == 1 else (None, None)
+        )
+        readings.append(_reduce_indicator(
+            indicator_id=indicator_id,
+            chunks=chunks,
+            evidence=extraction.evidence,
+            strong_hits=strong_hits,
+            chunk_lookup=chunk_lookup,
+            chunk_to_cluster=chunk_to_cluster,
+            indicator_strong_set=indicator_strong_set,
+            sources_checked_str=sources_checked_str,
             failed_str=failed_str,
-            anomaly=aircraft_anomaly or vessel_anomaly,
-            anomaly_label="MND aircraft/vessel count",
-        ),
-        # --- Indicator #2: Logistics & Mobilization ---
-        _evaluate_indicator(
-            indicator_id=2,
-            indicator_name="Logistics & Mobilization",
-            strong_keyword_filter=INDICATOR_2_STRONG,
-            all_strong=all_strong,
-            weak_hits=all_weak_logistics,
-            family_map=family_map,
-            source_count=source_count,
-            checked_str=checked_str,
-            failed_str=failed_str,
-            # Logistics has no quantitative MND-count baseline
-            anomaly=None,
-            anomaly_label="",
-            # X/OSINT is the primary feed for logistics signals
-            require_osint=True,
-            osint_available=osint_items is not None,
-        ),
-        # --- Indicator #8: Allied Response ---
-        _evaluate_indicator(
-            indicator_id=8,
-            indicator_name="Allied Response",
-            strong_keyword_filter=INDICATOR_8_STRONG,
-            all_strong=all_strong,
-            weak_hits=all_weak_allied,
-            family_map=family_map,
-            source_count=source_count,
-            checked_str=checked_str,
-            failed_str=failed_str,
-            anomaly=None,
-            anomaly_label="",
-        ),
-    ]
+            extractor_available=extraction.available,
+            manipulation_flagged=manipulation_flagged,
+            anomaly_status=anomaly_for_this[0],
+            anomaly_explanation=anomaly_for_this[1],
+            indicator_name=indicator_name,
+        ))
 
     return readings
-
-
-# ---------------------------------------------------------------------------
-# Per-indicator evaluator — encodes the converged activation rule
-# ---------------------------------------------------------------------------
-
-def _evaluate_indicator(
-    *,
-    indicator_id: int,
-    indicator_name: str,
-    strong_keyword_filter: set[str],
-    all_strong: list[KeywordHit],
-    weak_hits: list[KeywordHit],
-    family_map: dict[str, str],
-    source_count: int,
-    checked_str: str,
-    failed_str: str,
-    anomaly,
-    anomaly_label: str,
-    require_osint: bool = False,
-    osint_available: bool = True,
-):
-    """
-    Activation rule:
-        active iff ANY of:
-            (a) ≥1 STRONG keyword (filtered to this indicator's vocabulary)
-                from any source, observed-action gate already applied
-            (b) baseline anomaly (current >= median + 2*MAD), if applicable
-            (c) ≥3 unique WEAK keywords across ≥2 source families,
-                negative-context sentences excluded, AND LLM adjudicator
-                returns "yes"
-
-    Confidence and evidence_class derive from which branch fired.
-    """
-    # Branch A: STRONG match
-    relevant_strong = [h for h in all_strong if h.keyword in strong_keyword_filter]
-    if relevant_strong:
-        unique_terms = sorted({h.keyword for h in relevant_strong})
-        sources = sorted({h.source for h in relevant_strong})
-        return make_reading(
-            indicator_id=indicator_id,
-            active=True,
-            confidence="high",
-            evidence_class="concrete",
-            summary=(
-                f"Concrete signal — {', '.join(unique_terms[:5])} "
-                f"(sources: {', '.join(sources[:3])}). "
-                f"Checked {checked_str}.{failed_str}"
-            ),
-            feed_healthy=source_count > 0,
-        )
-
-    # Branch B: Baseline anomaly (only indicator #1)
-    if anomaly is not None and anomaly.status in ("anomaly", "high_anomaly"):
-        return make_reading(
-            indicator_id=indicator_id,
-            active=True,
-            confidence="high" if anomaly.status == "high_anomaly" else "medium",
-            evidence_class="anomaly",
-            summary=(
-                f"Anomaly detected — {anomaly.explanation} "
-                f"Checked {checked_str}.{failed_str}"
-            ),
-            feed_healthy=source_count > 0,
-        )
-
-    # Branch C: WEAK keyword convergence + LLM adjudication
-    unique_weak = unique_keywords(weak_hits)
-    by_family = hits_by_source_family(weak_hits, family_map)
-    families_with_hits = [f for f, hits in by_family.items() if hits]
-
-    weak_threshold_met = (
-        len(unique_weak) >= WEAK_UNIQUE_THRESHOLD
-        and len(families_with_hits) >= WEAK_FAMILY_THRESHOLD
-    )
-
-    if not weak_threshold_met:
-        # Inactive — no concrete signal, no anomaly, weak signal below threshold
-        if require_osint and not osint_available:
-            summary = (
-                f"Could not check — X/OSINT is the primary source for this indicator.{failed_str}"
-            )
-            healthy = False
-        elif source_count == 0:
-            summary = f"Could not check — all sources failed.{failed_str}"
-            healthy = False
-        else:
-            summary = (
-                f"Checked {checked_str}. No concrete signals; "
-                f"{len(unique_weak)} unique vocabulary matches across "
-                f"{len(families_with_hits)} source families "
-                f"(needs ≥{WEAK_UNIQUE_THRESHOLD} terms across "
-                f"≥{WEAK_FAMILY_THRESHOLD} families)."
-            )
-            healthy = source_count > 0
-        return make_reading(
-            indicator_id=indicator_id,
-            active=False,
-            confidence="none",
-            evidence_class="keyword",
-            summary=summary,
-            feed_healthy=healthy,
-        )
-
-    # WEAK threshold met → ask the LLM adjudicator
-    snippets = [
-        WeakMatchSnippet(source=h.source, matched_terms=[h.keyword], sentence=h.sentence)
-        for h in weak_hits
-        if not is_negative_context(h.sentence)  # extra defense; should already be filtered
-    ]
-    verdict = adjudicate_weak_signal(indicator_name, snippets)
-
-    if verdict.verdict == "yes":
-        return make_reading(
-            indicator_id=indicator_id,
-            active=True,
-            confidence="medium",
-            evidence_class="keyword",
-            summary=(
-                f"Vocabulary convergence ({len(unique_weak)} unique terms across "
-                f"{len(families_with_hits)} families) confirmed by LLM adjudicator: "
-                f"{verdict.rationale} Checked {checked_str}.{failed_str}"
-            ),
-            feed_healthy=source_count > 0,
-        )
-
-    # Adjudicator said "no" or "undetermined" → inactive, but record the signal
-    suffix = (
-        " (adjudicator unavailable — defaulting to inactive)"
-        if not verdict.available
-        else ""
-    )
-    return make_reading(
-        indicator_id=indicator_id,
-        active=False,
-        confidence="low",
-        evidence_class="keyword",
-        summary=(
-            f"Vocabulary convergence at threshold but adjudicator returned "
-            f"'{verdict.verdict}': {verdict.rationale}{suffix} "
-            f"Checked {checked_str}.{failed_str}"
-        ),
-        feed_healthy=source_count > 0,
-    )
-
-
-# ---------------------------------------------------------------------------
-# OSINT relevance pre-filter
-# ---------------------------------------------------------------------------
-
-TAIWAN_CONTEXT_PATTERNS = [
-    "taiwan", "taipei", "formosa", "fujian", "guangdong", "kaohsiung",
-    "cross-strait", "cross strait", "strait of taiwan", "taiwan strait",
-    " pla ", " plan ", " plaaf ", "plarf", "pla navy", "pla air",
-    "indo-pacific command", "indopacom", "rocaf",
-]
-
-
-def _osint_taiwan_relevant(text: str) -> bool:
-    lower = text.lower()
-    return any(p in lower for p in TAIWAN_CONTEXT_PATTERNS)

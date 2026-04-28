@@ -118,6 +118,9 @@ def make_reading(
     feed_healthy: bool = True,
     is_destructive: bool = False,
     evidence_class: str = "keyword",
+    evidence_quotes: list[dict] | None = None,
+    rationale: str = "",
+    manipulation_flagged_count: int = 0,
 ) -> IndicatorReading:
     return IndicatorReading(
         id=indicator_id,
@@ -128,6 +131,9 @@ def make_reading(
         feed_healthy=feed_healthy,
         is_destructive=is_destructive,
         evidence_class=evidence_class,
+        evidence_quotes=evidence_quotes or [],
+        rationale=rationale,
+        manipulation_flagged_count=manipulation_flagged_count,
     )
 
 

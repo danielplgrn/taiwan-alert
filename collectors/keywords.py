@@ -1,29 +1,21 @@
 """
-Keyword vocabulary + matching pipeline for the military / OSINT collectors.
+STRONG-only keyword vocabulary for the deterministic parallel detector.
 
-Designed around the converged Codex critique:
+Architecture context (Option B.1):
+  - The LLM evidence extractor is the primary path for OSINT and gov-text
+    interpretation on indicators 1, 2, 8.
+  - This module is the **deterministic parallel detector**. It runs alongside
+    the LLM and fires authoritatively when a tightly-curated, externally-
+    observable categorical act appears in the text.
+  - WEAK keyword lists (FORCE_WEAK / LOGISTICS_WEAK / ALLIED_WEAK) and the
+    sentence-scoped negative-context filter were removed in this refactor.
+    Only categorical-action vocabulary remains.
+  - Observed-action gate stays: speculation/hypothetical sentences are
+    rejected. Geography gate stays: "port closure" requires a theater port.
 
-- STRONG keywords describe **concrete, externally observable, costly
-  administrative or operational acts**. They are not just "scary words" —
-  they are things that require a real bureaucratic decision and would
-  cost the regime to fake or reverse. Examples: "civilian ferry
-  requisition", "reserve call-up order", "blood donation drive military".
-
-- WEAK keywords are doctrine vocabulary, capability terms, or routine
-  PLA-pressure language ("aircraft carrier", "amphibious", "combat
-  readiness patrol"). They appear in normal daily reporting as much as
-  in genuine escalation. They count only when MULTIPLE unique terms
-  cross-corroborate from independent sources, with negative-context
-  sentences excluded.
-
-- The observed-action gate rejects conditional / hypothetical / reporting-
-  about-reporting forms. "Analysts fear a reserve call-up" must not count
-  the same as "Reservists ordered to report by 06:00 Friday".
-
-- The negative filter is SENTENCE-scoped, not document-scoped. A tweet
-  saying "Joint Sword exercise expands; civilian ferries requisitioned in
-  Fujian" must not lose the requisition signal because the same tweet
-  also mentions "exercise".
+The full keyword list is intentionally short (8-12 phrases). Adding less-
+specific terms here would re-introduce the false-positive surface we just
+spent a refactor removing. Expansion needs eval evidence.
 """
 
 from __future__ import annotations
@@ -31,96 +23,61 @@ from __future__ import annotations
 import re
 
 # ---------------------------------------------------------------------------
-# STRONG — concrete, costly, externally observable acts.
-#
-# A STRONG match should be a meaningful signal on its own (subject to the
-# observed-action gate below). Each phrase here describes a specific act,
-# not a capability or doctrine concept.
+# STRONG — concrete, costly, externally observable acts only.
+# Curated short list. Each phrase requires a real bureaucratic/operational
+# decision that is hard to fake or reverse, and is published or observable.
 # ---------------------------------------------------------------------------
 
 STRONG_KEYWORDS = [
-    # Civilian transport requisition (impossible to fake; visible from outside)
+    # Civilian transport requisition (administrative act, observable from outside)
     "civilian ferry requisition",
     "civilian ferries requisitioned",
     "ro-ro ship requisition",
-    "ro-ro requisitioned",
-    "civilian vessel commandeered",
-    "merchant fleet mobilized",
 
-    # Manpower mobilization (administrative acts, not capability)
+    # Manpower mobilization (administrative orders)
     "reserve call-up order",
     "reservist mobilization order",
-    "reserve activation order",
     "civilian conscription order",
-    "militia mobilization order",
-    "leave cancellation order",  # Taiwan side too — used in ind #5 collector
-    "general mobilization",
 
-    # Mass-casualty preparation (concrete logistics signal)
+    # Mass-casualty preparation (logistics signal)
     "blood donation drive military",
-    "blood drive military",
     "mass casualty preparation",
 
-    # Hard infrastructure closures with a named locale (geo-gated below)
+    # Hard infrastructure closures (geo-gated below)
     "port closure",
     "civilian airspace closure",
-    "harbor closure",
 
-    # Diplomatic personnel withdrawal — a lagging but concrete escalation
+    # Diplomatic personnel withdrawal — a lagging but very concrete escalation
     "embassy evacuation",
-    "diplomats recalled taiwan",
 ]
 
 
 # ---------------------------------------------------------------------------
-# WEAK — appears in routine reporting AND in genuine escalation.
-#
-# Counts only via the cross-source / unique-keyword / negative-filter gate.
+# Per-indicator routing for STRONG hits
 # ---------------------------------------------------------------------------
 
-FORCE_WEAK = [
-    "pla navy", "plan fleet", "amphibious", "landing ship", "lst",
-    "fujian port", "guangdong port", "naval staging", "ship concentration",
-    "carrier strike", "aircraft carrier", "forward deploy", "fighter deploy",
-    "missile repositioning", "tel movement", "plarf", "df-", "rocket force",
-    "joint exercise fujian", "combat readiness patrol", "war mobilization",
-    "military conscription",
-]
+INDICATOR_1_STRONG = {
+    "port closure",  # geo-gated
+    "civilian airspace closure",  # geo-gated
+}
 
-LOGISTICS_WEAK = [
-    "fuel staging", "ammunition", "ammo movement", "hospital activation",
-    "mobilization order", "civilian ferry", "ro-ro ship", "rail military",
-    "logistics surge", "transport requisition", "militia mobilization",
-    "strategic reserve",
-]
+INDICATOR_2_STRONG = {
+    "civilian ferry requisition",
+    "civilian ferries requisitioned",
+    "ro-ro ship requisition",
+    "reserve call-up order",
+    "reservist mobilization order",
+    "civilian conscription order",
+    "blood donation drive military",
+    "mass casualty preparation",
+}
 
-ALLIED_WEAK = [
-    "carrier strike group taiwan", "taiwan strait transit",
-    "surge deploy western pacific", "reposition to taiwan",
-    "japan sdf alert", "jsdf scramble record",
-    "p-8 poseidon taiwan", "guam surge deploy",
-    "indopacom taiwan contingency",
-]
+INDICATOR_8_STRONG: set[str] = set()  # No allied-side STRONG terms — LLM-only
+INDICATOR_7_STRONG = {"embassy evacuation"}  # diplomatic indicator (handled elsewhere)
 
 
 # ---------------------------------------------------------------------------
-# Negative-context (sentence-scoped, WEAK-only)
-# ---------------------------------------------------------------------------
-
-NEGATIVE_CONTEXT_WORDS = [
-    "exercise", "drill", "training", "scheduled", "routine",
-    "annual", "regular patrol", "rehearsal", "wargame",
-]
-
-
-# ---------------------------------------------------------------------------
-# Observed-action gate — kill conditional / hypothetical / second-hand forms.
-#
-# These patterns mark a sentence as speculative. STRONG matches inside such
-# sentences are downgraded. We do this with a tight allow-list of conditional
-# verbs and reporting verbs; this is not perfect English-language NLP, but
-# it catches the obvious cases ("analysts fear", "may", "could", "if") that
-# would otherwise let rumors auto-fire.
+# Observed-action gate — reject speculative/conditional/second-hand forms.
 # ---------------------------------------------------------------------------
 
 HYPOTHETICAL_PATTERNS = [
@@ -136,10 +93,13 @@ HYPOTHETICAL_PATTERNS = [
 _HYPOTHETICAL_RE = re.compile("|".join(HYPOTHETICAL_PATTERNS), re.IGNORECASE)
 
 
+def is_hypothetical(sentence: str) -> bool:
+    """True if the sentence is conditional / speculative / second-hand."""
+    return bool(_HYPOTHETICAL_RE.search(sentence))
+
+
 # ---------------------------------------------------------------------------
-# Theater-relevant geography (used to confirm "port closure" / "airspace closure"
-# refer to a Taiwan-relevant location). A bare "port closure" without a
-# named locale on this allowlist is not actionable.
+# Theater-relevant geography (for closure-type STRONG keywords)
 # ---------------------------------------------------------------------------
 
 THEATER_PORTS = [
@@ -148,8 +108,8 @@ THEATER_PORTS = [
     "shantou", "shanwei", "wenzhou",
     # Taiwan ports
     "kaohsiung", "keelung", "taichung port", "hualien port", "anping",
-    # PLA-relevant island chains
-    "matsu", "kinmen", "penghu", "dongyin", "xisha", "spratly",
+    # Strategic islands
+    "matsu", "kinmen", "penghu", "dongyin",
 ]
 
 THEATER_AIRSPACE_TOKENS = [
@@ -158,8 +118,17 @@ THEATER_AIRSPACE_TOKENS = [
 ]
 
 
+def has_theater_geography(sentence: str, kind: str) -> bool:
+    s = sentence.lower()
+    if kind == "port":
+        return any(p in s for p in THEATER_PORTS)
+    if kind == "airspace":
+        return any(p in s for p in THEATER_AIRSPACE_TOKENS)
+    return True
+
+
 # ---------------------------------------------------------------------------
-# Sentence splitter — naive but good enough for tweets and MND HTML.
+# Sentence splitter — used to scope the observed-action / geography gates
 # ---------------------------------------------------------------------------
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？；;\n])\s+")
@@ -169,61 +138,28 @@ def split_sentences(text: str) -> list[str]:
     return [s.strip() for s in _SENTENCE_SPLIT_RE.split(text) if s.strip()]
 
 
-def _contains(text_lower: str, terms: list[str]) -> bool:
-    return any(t in text_lower for t in terms)
-
-
-def is_negative_context(sentence: str) -> bool:
-    """True if the sentence is framed as routine/scheduled activity."""
-    return _contains(sentence.lower(), NEGATIVE_CONTEXT_WORDS)
-
-
-def is_hypothetical(sentence: str) -> bool:
-    """True if the sentence is conditional / speculative / second-hand."""
-    return bool(_HYPOTHETICAL_RE.search(sentence))
-
-
-def has_theater_geography(sentence: str, kind: str) -> bool:
-    """
-    For hard-infrastructure STRONG keywords (port/airspace closure), require
-    that the named locale falls within the Taiwan theater. Without this gate
-    a "port closure in Hamburg" would auto-fire.
-    """
-    s = sentence.lower()
-    if kind == "port":
-        return _contains(s, THEATER_PORTS)
-    if kind == "airspace":
-        return _contains(s, THEATER_AIRSPACE_TOKENS)
-    return True
-
-
 # ---------------------------------------------------------------------------
-# Match dataclasses
+# STRONG keyword detector
 # ---------------------------------------------------------------------------
 
-class KeywordHit:
-    __slots__ = ("keyword", "sentence", "strength", "source")
+class StrongHit:
+    __slots__ = ("keyword", "sentence", "source", "chunk_id")
 
-    def __init__(self, keyword: str, sentence: str, strength: str, source: str):
+    def __init__(self, keyword: str, sentence: str, source: str, chunk_id: str = ""):
         self.keyword = keyword
         self.sentence = sentence
-        self.strength = strength      # "strong" | "weak"
-        self.source = source           # source identifier (e.g. "MND", "osint:sentdefender")
+        self.source = source
+        self.chunk_id = chunk_id
 
     def __repr__(self):
-        return f"KeywordHit({self.strength}, {self.keyword!r}, {self.source})"
+        return f"StrongHit({self.keyword!r}, source={self.source}, chunk_id={self.chunk_id})"
 
 
-# ---------------------------------------------------------------------------
-# Geography-gated STRONG keywords (require theater-relevant locale)
-# ---------------------------------------------------------------------------
-
-_PORT_GATED = {"port closure", "harbor closure"}
+_PORT_GATED = {"port closure"}
 _AIRSPACE_GATED = {"civilian airspace closure"}
 
 
-def _strong_passes_gates(keyword: str, sentence: str) -> bool:
-    """Apply observed-action + geography gates to a STRONG keyword."""
+def _passes_gates(keyword: str, sentence: str) -> bool:
     if is_hypothetical(sentence):
         return False
     if keyword in _PORT_GATED:
@@ -233,61 +169,16 @@ def _strong_passes_gates(keyword: str, sentence: str) -> bool:
     return True
 
 
-# ---------------------------------------------------------------------------
-# Public matching API
-# ---------------------------------------------------------------------------
-
-def match_strong(text: str, source: str) -> list[KeywordHit]:
+def detect_strong(text: str, source: str, chunk_id: str = "") -> list[StrongHit]:
     """
-    Find STRONG keyword hits in `text`, sentence-by-sentence, applying
-    the observed-action and geography gates. Returns one KeywordHit per
-    matching (keyword, sentence) pair.
+    Find STRONG keyword matches in `text`, sentence-by-sentence, applying
+    the observed-action and geography gates. Returns one hit per
+    (keyword, sentence) pair.
     """
-    hits: list[KeywordHit] = []
+    hits: list[StrongHit] = []
     for sentence in split_sentences(text):
         s_lower = sentence.lower()
         for kw in STRONG_KEYWORDS:
-            if kw in s_lower and _strong_passes_gates(kw, sentence):
-                hits.append(KeywordHit(kw, sentence, "strong", source))
+            if kw in s_lower and _passes_gates(kw, sentence):
+                hits.append(StrongHit(kw, sentence, source, chunk_id))
     return hits
-
-
-def match_weak(
-    text: str,
-    weak_keywords: list[str],
-    source: str,
-    apply_negative_filter: bool = True,
-) -> list[KeywordHit]:
-    """
-    Find WEAK keyword hits in `text`. Sentences containing negative-context
-    words ("exercise", "drill", "training", ...) are dropped at the SENTENCE
-    level — but only WEAK matches are filtered. (STRONG matches in the same
-    document are unaffected; that pipeline runs separately.)
-    """
-    hits: list[KeywordHit] = []
-    for sentence in split_sentences(text):
-        if apply_negative_filter and is_negative_context(sentence):
-            continue
-        s_lower = sentence.lower()
-        for kw in weak_keywords:
-            if kw in s_lower:
-                hits.append(KeywordHit(kw, sentence, "weak", source))
-    return hits
-
-
-def unique_keywords(hits: list[KeywordHit]) -> set[str]:
-    """Set of distinct keywords — counts unique terms, not raw hits."""
-    return {h.keyword for h in hits}
-
-
-def hits_by_source_family(hits: list[KeywordHit], family_of: dict[str, str]) -> dict[str, list[KeywordHit]]:
-    """
-    Group hits by source family. `family_of` maps source -> family name
-    (e.g. "GOV", "OSINT_TIER1", "OSINT_TIER2"). Hits whose source isn't
-    in the map fall under "OTHER".
-    """
-    by_family: dict[str, list[KeywordHit]] = {}
-    for h in hits:
-        family = family_of.get(h.source, "OTHER")
-        by_family.setdefault(family, []).append(h)
-    return by_family

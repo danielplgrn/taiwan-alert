@@ -1,15 +1,22 @@
 """
-Tweet event-deduplication.
+Tweet event-deduplication, returning cluster objects.
 
 OSINT accounts repost and paraphrase each other. A single underlying event
-("PLA carrier transit observed") can show up as 5 near-identical tweets,
-inflating the keyword-hit count. This module collapses those into a single
-canonical event using rapidfuzz string similarity on normalized text.
+("PLA carrier transit observed") can show up as N near-identical tweets.
+Code-side corroboration in the LLM-first pipeline needs to know the cluster
+membership (for cross-source-family checks) without sending all duplicates
+to the LLM.
+
+This module:
+  - Normalizes tweets (strips URLs/handles/hashtags/RT prefixes)
+  - Clusters via rapidfuzz token_set_ratio (≥85)
+  - Returns Cluster objects with cluster_id, members, and a representative
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from typing import Iterable
 
 try:
@@ -26,11 +33,25 @@ _WHITESPACE_RE = re.compile(r"\s+")
 _RT_PREFIX_RE = re.compile(r"^\s*(?:rt|RT)[ :]+", re.IGNORECASE)
 
 
+@dataclass
+class TweetMember:
+    text: str
+    author: str = ""
+
+
+@dataclass
+class Cluster:
+    cluster_id: str
+    members: list[TweetMember] = field(default_factory=list)
+    representative: TweetMember | None = None
+
+    @property
+    def size(self) -> int:
+        return len(self.members)
+
+
 def normalize_tweet(text: str) -> str:
-    """
-    Strip URLs, handles, hashtags, RT-prefixes, and collapse whitespace —
-    so that retweets and paraphrases collapse to the same canonical form.
-    """
+    """Lowercase, strip URLs/handles/hashtags/RT-prefixes, collapse whitespace."""
     if not text:
         return ""
     text = _RT_PREFIX_RE.sub("", text)
@@ -43,40 +64,64 @@ def normalize_tweet(text: str) -> str:
 
 def dedup_events(texts: Iterable[str], threshold: int = 85) -> list[str]:
     """
-    Cluster `texts` by approximate-string similarity. Within each cluster,
-    return one representative (the longest, since longer often = original).
+    Backward-compat: return list of representative texts only.
+    Prefer cluster_events() for new code.
+    """
+    return [c.representative.text for c in cluster_events(
+        [TweetMember(text=t) for t in texts], threshold
+    ) if c.representative is not None]
 
-    `threshold` is rapidfuzz's token_set_ratio (0..100). 85 is a reasonable
-    default — strict enough to dedupe retweets and copy-paste reposts, loose
-    enough to merge minor paraphrasing.
 
-    If rapidfuzz is unavailable, falls back to exact-match dedup on the
+def cluster_events(
+    members: Iterable[TweetMember],
+    threshold: int = 85,
+) -> list[Cluster]:
+    """
+    Cluster tweets by approximate-string similarity. Returns Cluster objects
+    with stable cluster_id, all member tweets (for code-side corroboration
+    math), and the representative (longest text in the cluster — typically
+    the original, not a truncated retweet).
+
+    Without rapidfuzz, falls back to exact-match clustering on the
     normalized form.
     """
-    items = [(t, normalize_tweet(t)) for t in texts if t and t.strip()]
+    items = [(m, normalize_tweet(m.text)) for m in members if m.text and m.text.strip()]
     if not items:
         return []
 
     if not _HAVE_RAPIDFUZZ:
-        # Fallback: exact-match dedup on normalized form
-        seen: dict[str, str] = {}
-        for original, norm in items:
-            if norm not in seen or len(original) > len(seen[norm]):
-                seen[norm] = original
-        return list(seen.values())
+        # Fallback: exact-match clustering on normalized form
+        bucket: dict[str, list[TweetMember]] = {}
+        for member, norm in items:
+            bucket.setdefault(norm, []).append(member)
+        return [
+            _build_cluster(i, members_in_bucket)
+            for i, members_in_bucket in enumerate(bucket.values())
+        ]
 
-    clusters: list[list[tuple[str, str]]] = []
-    for original, norm in items:
+    clusters: list[list[tuple[TweetMember, str]]] = []
+    for member, norm in items:
         placed = False
-        for cluster in clusters:
-            # Compare against the cluster's first member
-            _, cluster_norm = cluster[0]
+        for cluster_items in clusters:
+            _, cluster_norm = cluster_items[0]
             if fuzz.token_set_ratio(norm, cluster_norm) >= threshold:
-                cluster.append((original, norm))
+                cluster_items.append((member, norm))
                 placed = True
                 break
         if not placed:
-            clusters.append([(original, norm)])
+            clusters.append([(member, norm)])
 
-    # Pick the longest original per cluster (likely the source, not a truncated retweet)
-    return [max(cluster, key=lambda pair: len(pair[0]))[0] for cluster in clusters]
+    return [
+        _build_cluster(i, [m for (m, _) in cluster_items])
+        for i, cluster_items in enumerate(clusters)
+    ]
+
+
+def _build_cluster(idx: int, members: list[TweetMember]) -> Cluster:
+    """Pick the longest member as the representative."""
+    representative = max(members, key=lambda m: len(m.text)) if members else None
+    return Cluster(
+        cluster_id=f"k{idx:03d}",
+        members=members,
+        representative=representative,
+    )

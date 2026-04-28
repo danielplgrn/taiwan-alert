@@ -115,6 +115,11 @@ function renderGrid(gridId, ids, indicators) {
     const confLabel = confLevel === "na" ? "N/A" : confLevel;
     const confBadge = `<span class="confidence-badge ${confLevel}">${confLabel}</span>`;
 
+    const evidenceHtml = renderEvidence(ind);
+    const manipulationBadge = ind.manipulation_flagged_count > 0
+      ? `<span class="manipulation-badge" title="LLM flagged ${ind.manipulation_flagged_count} input chunk(s) as injection attempts">⚠ ${ind.manipulation_flagged_count} flagged</span>`
+      : "";
+
     card.innerHTML = `
       <div class="card-header">
         <span><span class="card-id">#${ind.id}</span> <span class="card-name">${ind.name || ""}</span></span>
@@ -123,12 +128,49 @@ function renderGrid(gridId, ids, indicators) {
       <div class="card-summary">${escapeHtml(ind.summary || "")}</div>
       <div class="card-meta">
         ${confBadge}
+        ${manipulationBadge}
         <span>${formatTime(ind.last_checked)}</span>
       </div>
+      ${evidenceHtml}
     `;
 
     grid.appendChild(card);
   }
+}
+
+function renderEvidence(ind) {
+  const quotes = Array.isArray(ind.evidence_quotes) ? ind.evidence_quotes : [];
+  if (quotes.length === 0 && !ind.rationale) return "";
+
+  const items = quotes.slice(0, 6).map((q) => {
+    const family = q.family || "";
+    const claim = q.claim_type || "";
+    const directness = q.directness || "";
+    const phrase = escapeHtml(q.key_phrase || "");
+    const why = escapeHtml(q.why || "");
+    const sourceLabel = escapeHtml(q.source || "unknown");
+    return `
+      <li class="evidence-item">
+        <div class="evidence-header">
+          <span class="evidence-source">${sourceLabel}</span>
+          <span class="evidence-family family-${family}">${family}</span>
+          <span class="evidence-claim claim-${claim}">${claim}/${directness}</span>
+        </div>
+        <blockquote class="evidence-quote">${phrase}</blockquote>
+        ${why ? `<div class="evidence-why">${why}</div>` : ""}
+      </li>
+    `;
+  }).join("");
+
+  const rationale = ind.rationale ? `<div class="evidence-rationale">${escapeHtml(ind.rationale)}</div>` : "";
+
+  return `
+    <details class="evidence-block">
+      <summary class="evidence-toggle">Why this is ${ind.active ? "firing" : "inactive"} (${quotes.length} quote${quotes.length === 1 ? "" : "s"})</summary>
+      ${rationale}
+      <ul class="evidence-list">${items}</ul>
+    </details>
+  `;
 }
 
 function formatTime(iso) {

@@ -276,6 +276,90 @@ footer {
 
 .hidden { display: none !important; }
 
+/* "Why this is firing" — evidence quote panel (LLM-first pipeline) */
+.evidence-block {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.4rem;
+}
+.evidence-toggle {
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  user-select: none;
+}
+.evidence-toggle:hover { color: var(--text); }
+.evidence-rationale {
+  margin: 0.4rem 0;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text);
+  background: rgba(255,255,255,0.03);
+  border-left: 2px solid var(--text-muted);
+  border-radius: 2px;
+}
+.evidence-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.evidence-item {
+  font-size: 0.7rem;
+  background: rgba(255,255,255,0.02);
+  padding: 0.4rem 0.5rem;
+  border-radius: 3px;
+}
+.evidence-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+.evidence-source { font-weight: 600; color: var(--text); }
+.evidence-family {
+  font-size: 0.65rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-muted);
+}
+.family-GOV { background: #1a3a5c; color: #aacde6; }
+.family-OSINT_TIER1 { background: #2c4a2c; color: #b9d6b9; }
+.family-OSINT_TIER2 { background: #3d3d3d; color: #c0c0c0; }
+.evidence-claim {
+  font-size: 0.65rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+}
+.claim-observed_act { color: #f4a261; }
+.claim-vocabulary_only { color: #aaa; }
+.claim-speculation { color: #888; }
+.evidence-quote {
+  margin: 0.2rem 0;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--text-muted);
+  color: var(--text);
+  font-style: italic;
+}
+.evidence-why {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+.manipulation-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 8px;
+  background: #5a2a2a;
+  color: #ffd0c0;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
   #action-label { font-size: 1.8rem; }

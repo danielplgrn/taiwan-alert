@@ -36,7 +36,7 @@ from config import (
 class IndicatorReading:
     id: int
     active: bool
-    confidence: str = "none"       # "high", "medium", "low", "none"
+    confidence: str = "none"       # "high", "medium", "low", "none" — UI/audit only; NOT consumed by evaluate()
     summary: str = ""
     last_checked: str = ""         # ISO timestamp
     feed_healthy: bool = True
@@ -49,6 +49,13 @@ class IndicatorReading:
     #                 PLA aircraft count > median + 3*MAD)
     # "hostilities" — explicit overt hostile action
     evidence_class: str = "keyword"
+    # Audit fields populated by the LLM-first pipeline (military.py). Other
+    # collectors leave these empty.
+    # Each evidence quote: {chunk_id, source, family, key_phrase, claim_type,
+    #                       directness, why}
+    evidence_quotes: list[dict] = field(default_factory=list)
+    rationale: str = ""                          # one-paragraph "why" for the dashboard
+    manipulation_flagged_count: int = 0          # how many input chunks the LLM flagged as injection attempts
 
 
 @dataclass
@@ -218,6 +225,9 @@ def _state_to_dict(state: SystemState) -> dict:
                 "feed_healthy": r.feed_healthy,
                 "is_destructive": r.is_destructive,
                 "evidence_class": r.evidence_class,
+                "evidence_quotes": r.evidence_quotes,
+                "rationale": r.rationale,
+                "manipulation_flagged_count": r.manipulation_flagged_count,
             }
             for ind_id, r in state.indicators.items()
         },
@@ -266,6 +276,9 @@ def load_previous_state() -> Optional[SystemState]:
                     feed_healthy=v.get("feed_healthy", True),
                     is_destructive=v.get("is_destructive", False),
                     evidence_class=v.get("evidence_class", "keyword"),
+                    evidence_quotes=v.get("evidence_quotes") or [],
+                    rationale=v.get("rationale", ""),
+                    manipulation_flagged_count=v.get("manipulation_flagged_count", 0),
                 )
         return SystemState(
             alert_state=AlertState(d["alert_state"]),

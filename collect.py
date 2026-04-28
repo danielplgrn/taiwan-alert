@@ -54,8 +54,10 @@ COLLECTOR_REGISTRY: dict[str, list[dict]] = {
         {"module": "collectors.rhetoric_political", "indicators": [9]},
     ],
     "daily_9am": [
+        # military.py is the sole owner of indicators 1, 2, and 8.
+        # The previous lossy OR-merge with collectors.allied was removed when
+        # the LLM-first pipeline replaced the keyword approach.
         {"module": "collectors.military", "indicators": [1, 2, 8]},
-        {"module": "collectors.allied", "indicators": [8]},
     ],
 }
 
@@ -138,6 +140,9 @@ def merge_with_previous(
                     feed_healthy=prev_data.get("feed_healthy", True),
                     is_destructive=prev_data.get("is_destructive", False),
                     evidence_class=prev_data.get("evidence_class", "keyword"),
+                    evidence_quotes=prev_data.get("evidence_quotes") or [],
+                    rationale=prev_data.get("rationale", ""),
+                    manipulation_flagged_count=prev_data.get("manipulation_flagged_count", 0),
                 )
             elif isinstance(prev_data, IndicatorReading):
                 new_readings[ind_id] = prev_data

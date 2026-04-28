@@ -7,7 +7,7 @@
     "Logistics & Mobilization"
   ],
   "state_since": 1777241258.8930333,
-  "evaluated_at": "2026-04-28T04:38:09.526958+00:00",
+  "evaluated_at": "2026-04-28T04:50:46.657096+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "",
@@ -20,7 +20,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Taiwan MND for ship/aircraft/missile repositioning. No unusual concentration. Failed: X/OSINT (Apify fetch failed), Japan MOD (blocked).",
-      "last_checked": "2026-04-28T04:38:09.423559+00:00",
+      "last_checked": "2026-04-28T04:50:46.519782+00:00",
       "feed_healthy": true,
       "is_destructive": false
     },
@@ -32,7 +32,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Could not check \u2014 X/OSINT is the primary source for logistics signals. Failed: X/OSINT (Apify fetch failed), Japan MOD (blocked).",
-      "last_checked": "2026-04-28T04:38:09.423584+00:00",
+      "last_checked": "2026-04-28T04:50:46.519818+00:00",
       "feed_healthy": false,
       "is_destructive": false
     },
@@ -44,7 +44,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Taiwan MND for US/Japan military repositioning. No unusual posture changes.",
-      "last_checked": "2026-04-28T04:38:09.423592+00:00",
+      "last_checked": "2026-04-28T04:50:46.519826+00:00",
       "feed_healthy": true,
       "is_destructive": false
     },

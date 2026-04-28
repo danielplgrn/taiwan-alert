@@ -212,18 +212,30 @@ def _fetch_osint_tweets() -> list[str] | None:
         log.warning("APIFY_API_TOKEN not set — skipping X/OSINT collection")
         return None
 
-    # Use Apify Twitter scraper actor
+    # Use Apify Twitter scraper actor (apidojo/tweet-scraper)
+    # Schema: https://api.apify.com/v2/acts/apidojo~tweet-scraper/builds/default
+    # Cost model: PRICE_PER_DATASET_ITEM at $0.0004/tweet (incl. margin).
+    # We send maxTotalChargeUsd as a RUN PARAMETER (URL query), not actor input —
+    # it only works as a hard cap when in the URL.
     actor_id = "apidojo~tweet-scraper"
     api_url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items"
 
+    # 12 accounts * 5 tweets = 60 cap. 60 * $0.0004 = ~$0.024/run.
+    max_items = 5 * len(OSINT_ACCOUNTS)
     payload = json.dumps({
-        "handles": OSINT_ACCOUNTS,
-        "tweetsDesired": 5,  # per account
-        "maxTotalChargeUsd": APIFY_MAX_CHARGE_USD,
+        "twitterHandles": OSINT_ACCOUNTS,
+        "maxItems": max_items,
+        "sort": "Latest",
+        "tweetLanguage": "en",
     }).encode("utf-8")
 
+    url = (
+        f"{api_url}?token={APIFY_API_TOKEN}"
+        f"&maxTotalChargeUsd={APIFY_MAX_CHARGE_USD}"
+        f"&maxItems={max_items}"
+    )
     req = urllib.request.Request(
-        f"{api_url}?token={APIFY_API_TOKEN}",
+        url,
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",

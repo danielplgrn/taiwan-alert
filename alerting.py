@@ -9,12 +9,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import urllib.request
 import urllib.error
 from typing import Optional
 
 from config import AlertState, ACTION_LABELS, SLACK_WEBHOOK_URL
 from scoring import SystemState
+
+TEST_MODE = os.getenv("TAIWAN_ALERT_TEST_MODE", "").lower() in ("1", "true", "yes")
+TEST_PREFIX = "🧪 TEST — " if TEST_MODE else ""
 
 log = logging.getLogger(__name__)
 
@@ -60,11 +64,11 @@ def build_message(previous: Optional[SystemState], current: SystemState) -> dict
     if previous and previous.alert_state != current.alert_state:
         prev_label = ACTION_LABELS[previous.alert_state]
         curr_label = ACTION_LABELS[current.alert_state]
-        title = f"{emoji} Taiwan Alert: {previous.alert_state.value.upper()} -> {current.alert_state.value.upper()}"
+        title = f"{TEST_PREFIX}{emoji} Taiwan Alert: {previous.alert_state.value.upper()} -> {current.alert_state.value.upper()}"
         subtitle = f"Action changed: {prev_label} -> *{curr_label}*"
     else:
         curr_label = ACTION_LABELS[current.alert_state]
-        title = f"{emoji} Taiwan Alert: {current.alert_state.value.upper()}"
+        title = f"{TEST_PREFIX}{emoji} Taiwan Alert: {current.alert_state.value.upper()}"
         subtitle = f"Action: *{curr_label}*"
 
     # Active indicators summary

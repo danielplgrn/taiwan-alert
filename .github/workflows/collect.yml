@@ -81,6 +81,7 @@ jobs:
       - name: Dispatch Slack alerts
         env:
           TAIWAN_ALERT_SLACK_WEBHOOK: ${{ secrets.TAIWAN_ALERT_SLACK_WEBHOOK }}
+          TAIWAN_ALERT_TEST_MODE: ${{ vars.TAIWAN_ALERT_TEST_MODE || 'false' }}
         run: python collect.py --dispatch-alerts
 
       - name: Commit alert watermark if updated

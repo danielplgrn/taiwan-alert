@@ -73,4 +73,6 @@ def collect() -> list:
         confidence="high" if len(signals) >= 2 else ("medium" if signals else "none"),
         summary=f"Checked TWD/USD and TAIEX. Anomaly detected: {' | '.join(signals)}" if active else "Checked TWD/USD exchange rate and TAIEX index via Yahoo Finance. Both within normal volatility range.",
         feed_healthy=any_healthy,
+        # Financial signals are quantitative deviations from baseline volatility.
+        evidence_class="anomaly" if active else "keyword",
     )]

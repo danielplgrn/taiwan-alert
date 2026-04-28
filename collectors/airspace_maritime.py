@@ -100,6 +100,17 @@ def collect() -> list:
     else:
         air_summary = f"Checked {air_checked}. No military closures or flight rerouting anomalies.{air_failed}"
 
+    # Evidence classification:
+    #   - NOTAM hits = "concrete" (a published airspace closure is an admin act)
+    #   - flight density anomaly only = "anomaly" (quantitative deviation)
+    #   - both = "concrete" (the stronger signal wins)
+    if notam_hits:
+        airspace_evidence = "concrete"
+    elif flight_anomaly:
+        airspace_evidence = "anomaly"
+    else:
+        airspace_evidence = "keyword"
+
     # NOTAM is optional; feed is considered healthy as long as OpenSky is up.
     readings.append(make_reading(
         indicator_id=3,
@@ -107,6 +118,7 @@ def collect() -> list:
         confidence=assign_confidence(len(notam_hits) + (1 if flight_anomaly else 0)),
         summary=air_summary,
         feed_healthy=opensky_healthy or notam_healthy,
+        evidence_class=airspace_evidence,
     ))
 
     # --- Maritime: China MSA ---
@@ -126,6 +138,8 @@ def collect() -> list:
         confidence=assign_confidence(len(msa_hits)),
         summary=msa_summary,
         feed_healthy=msa_healthy,
+        # MSA exclusion zones / shipping restrictions are admin acts
+        evidence_class="concrete" if maritime_active else "keyword",
     ))
 
     return readings

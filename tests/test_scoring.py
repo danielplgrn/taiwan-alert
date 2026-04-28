@@ -14,11 +14,18 @@ from scoring import IndicatorReading, SystemState, evaluate, effective_category
 from config import AlertState, Category
 
 
-def _reading(ind_id, active=False, confidence="medium", is_destructive=False, feed_healthy=True):
+def _reading(ind_id, active=False, confidence="medium", is_destructive=False,
+             feed_healthy=True, evidence_class="concrete"):
+    """
+    Default `evidence_class="concrete"` so existing tests can verify
+    state-machine behavior independently of the keyword-only cap.
+    Tests that specifically exercise the cap pass evidence_class="keyword".
+    """
     return IndicatorReading(
         id=ind_id, active=active, confidence=confidence,
         summary="test", last_checked="2026-01-01T00:00:00Z",
         feed_healthy=feed_healthy, is_destructive=is_destructive,
+        evidence_class=evidence_class,
     )
 
 
@@ -221,6 +228,92 @@ def test_threshold_persisted_in_state():
     readings = _with_active(_all_inactive(), 3)
     state = evaluate(readings, threshold=3)
     assert state.threshold == 3
+
+
+# ----- KEYWORD-ONLY MAX-PROMOTION RULE -----
+# RED requires at least one active indicator with concrete/anomaly/hostilities
+# evidence. Keyword-only signals cap at YELLOW regardless of how many fire.
+
+def test_two_keyword_only_primaries_caps_at_yellow():
+    """Two keyword-class primaries should NOT promote to RED."""
+    readings = _all_inactive()
+    readings[1] = _reading(1, active=True, evidence_class="keyword")
+    readings[3] = _reading(3, active=True, evidence_class="keyword")
+    state = evaluate(readings)
+    assert state.alert_state == AlertState.YELLOW
+    assert "keyword-only" in state.score_detail.lower()
+
+
+def test_keyword_primary_plus_keyword_secondary_caps_at_yellow():
+    """Mixed keyword-only signals shouldn't promote past YELLOW (no concrete evidence)."""
+    readings = _all_inactive()
+    readings[5] = _reading(5, active=True, evidence_class="keyword")  # primary
+    readings[9] = _reading(9, active=True, evidence_class="keyword")  # secondary
+    state = evaluate(readings)
+    assert state.alert_state == AlertState.YELLOW
+
+
+def test_concrete_primary_plus_keyword_secondary_is_amber():
+    """1 concrete primary + 1 keyword secondary should promote to AMBER."""
+    readings = _all_inactive()
+    readings[5] = _reading(5, active=True, evidence_class="concrete")
+    readings[9] = _reading(9, active=True, evidence_class="keyword")
+    state = evaluate(readings)
+    assert state.alert_state == AlertState.AMBER
+
+
+def test_anomaly_primary_alone_drives_yellow_not_red():
+    """One anomaly primary alone hits the threshold-1 RED branch only at threshold=1."""
+    readings = _all_inactive()
+    readings[1] = _reading(1, active=True, evidence_class="anomaly")
+    state = evaluate(readings)
+    # 1 primary → YELLOW (need 2 to hit RED at default threshold)
+    assert state.alert_state == AlertState.YELLOW
+
+
+def test_two_anomaly_primaries_is_red():
+    """Two anomaly-class primaries promote correctly to RED (anomaly counts as concrete)."""
+    readings = _all_inactive()
+    readings[1] = _reading(1, active=True, evidence_class="anomaly")
+    readings[3] = _reading(3, active=True, evidence_class="anomaly")
+    state = evaluate(readings)
+    assert state.alert_state == AlertState.RED
+
+
+def test_overt_hostilities_overrides_keyword_cap():
+    """overt_hostilities still drives RED regardless of evidence_class."""
+    readings = _all_inactive()
+    readings[1] = _reading(1, active=True, evidence_class="keyword")
+    state = evaluate(readings, overt_hostilities=True)
+    assert state.alert_state == AlertState.RED
+
+
+def test_evidence_class_persisted_through_save_load(tmp_path, monkeypatch):
+    """evidence_class field round-trips through save_state/load_previous_state."""
+    import config as cfg_module
+    state_file = tmp_path / "state.json"
+    web_file = tmp_path / "web_state.json"
+    history_file = tmp_path / "history.jsonl"
+    monkeypatch.setattr(cfg_module, "STATE_FILE", str(state_file))
+    monkeypatch.setattr(cfg_module, "WEB_STATE_FILE", str(web_file))
+    monkeypatch.setattr(cfg_module, "HISTORY_FILE", str(history_file))
+    monkeypatch.setattr(cfg_module, "DATA_DIR", str(tmp_path))
+    # scoring module uses module-level imports; patch there too
+    import scoring as scoring_module
+    monkeypatch.setattr(scoring_module, "STATE_FILE", str(state_file))
+    monkeypatch.setattr(scoring_module, "WEB_STATE_FILE", str(web_file))
+    monkeypatch.setattr(scoring_module, "HISTORY_FILE", str(history_file))
+    monkeypatch.setattr(scoring_module, "DATA_DIR", str(tmp_path))
+
+    readings = _all_inactive()
+    readings[3] = _reading(3, active=True, evidence_class="anomaly")
+    state = evaluate(readings)
+    scoring_module.save_state(state)
+
+    loaded = scoring_module.load_previous_state()
+    assert loaded is not None
+    assert loaded.indicators[3].evidence_class == "anomaly"
+    assert loaded.indicators[3].active is True
 
 
 if __name__ == "__main__":

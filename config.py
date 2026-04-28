@@ -146,6 +146,7 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 STATE_FILE = os.path.join(DATA_DIR, "state.json")
 HISTORY_FILE = os.path.join(DATA_DIR, "history.jsonl")
 WEB_STATE_FILE = os.path.join(BASE_DIR, "web", "state.json")
+BASELINE_FILE = os.path.join(DATA_DIR, "baselines.jsonl")
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +156,10 @@ WEB_STATE_FILE = os.path.join(BASE_DIR, "web", "state.json")
 SLACK_WEBHOOK_URL = os.environ.get("TAIWAN_ALERT_SLACK_WEBHOOK", "")
 APIFY_API_TOKEN = os.environ.get("APIFY_API_TOKEN", "")
 CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
+
+# Anthropic API key for the LLM adjudicator (Claude Haiku). Optional —
+# absence degrades gracefully: WEAK-only matches return "undetermined".
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 # Apify cost cap per run (USD)
 APIFY_MAX_CHARGE_USD = float(os.environ.get("APIFY_MAX_CHARGE_USD", "0.50"))

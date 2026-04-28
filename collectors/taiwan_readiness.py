@@ -79,4 +79,8 @@ def collect() -> list:
         confidence=assign_confidence(len(all_hits), source_count),
         summary=tw_summary,
         feed_healthy=source_count > 0,
+        # READINESS_KEYWORDS are tightly curated to categorical-escalation
+        # admin acts (alert level, leave cancellation, reserve activation,
+        # martial law). Treat hits as concrete signals.
+        evidence_class="concrete" if active else "keyword",
     )]

@@ -99,4 +99,7 @@ def collect() -> list:
         confidence=assign_confidence(len(escalations), source_count),
         summary=f"Checked US, UK, Japan, Australia travel advisories. Escalation detected: {' | '.join(escalations)}" if active else f"Checked US, UK, Japan, Australia travel advisories for Taiwan. All at normal levels ({source_count} of 4 sources reachable).",
         feed_healthy=any_healthy,
+        # Travel-advisory level changes are administrative acts published by
+        # the issuing government; treat as concrete evidence when active.
+        evidence_class="concrete" if active else "keyword",
     )]

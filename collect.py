@@ -137,6 +137,7 @@ def merge_with_previous(
                     last_checked=prev_data.get("last_checked", ""),
                     feed_healthy=prev_data.get("feed_healthy", True),
                     is_destructive=prev_data.get("is_destructive", False),
+                    evidence_class=prev_data.get("evidence_class", "keyword"),
                 )
             elif isinstance(prev_data, IndicatorReading):
                 new_readings[ind_id] = prev_data

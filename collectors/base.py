@@ -117,6 +117,7 @@ def make_reading(
     summary: str = "",
     feed_healthy: bool = True,
     is_destructive: bool = False,
+    evidence_class: str = "keyword",
 ) -> IndicatorReading:
     return IndicatorReading(
         id=indicator_id,
@@ -126,6 +127,7 @@ def make_reading(
         last_checked=now_iso(),
         feed_healthy=feed_healthy,
         is_destructive=is_destructive,
+        evidence_class=evidence_class,
     )
 
 

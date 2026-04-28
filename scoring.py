@@ -41,6 +41,14 @@ class IndicatorReading:
     last_checked: str = ""         # ISO timestamp
     feed_healthy: bool = True
     is_destructive: bool = False   # only relevant for indicator 6 (cyber)
+    # Evidence class — drives the scoring engine's max-promotion rule.
+    # "keyword"     — text/keyword match (weakest; cannot promote past YELLOW alone)
+    # "concrete"    — observed administrative/operational act (e.g. NOTAM closure,
+    #                 reserve call-up, MND announcement)
+    # "anomaly"     — quantitative deviation from baseline (e.g. flight density crash,
+    #                 PLA aircraft count > median + 3*MAD)
+    # "hostilities" — explicit overt hostile action
+    evidence_class: str = "keyword"
 
 
 @dataclass
@@ -97,14 +105,27 @@ def evaluate(
     total_active = len(active_primaries) + len(active_secondaries)
 
     # --- Determine raw alert state ---
+    # Max-promotion rule: keyword-only evidence cannot drive past YELLOW.
+    # RED requires at least one active indicator with concrete/anomaly/hostilities
+    # evidence. AMBER allows mixed evidence as long as ANY active primary has
+    # better-than-keyword evidence; otherwise also caps at YELLOW.
+    has_concrete_evidence = any(
+        readings[i].evidence_class in ("concrete", "anomaly", "hostilities")
+        for i in active_primaries + active_secondaries
+    )
+    has_concrete_primary = any(
+        readings[i].evidence_class in ("concrete", "anomaly", "hostilities")
+        for i in active_primaries
+    )
+
     if overt_hostilities:
         raw_state = AlertState.RED
         detail = "Overt hostilities flagged"
-    elif len(active_primaries) >= t:
+    elif len(active_primaries) >= t and has_concrete_primary:
         raw_state = AlertState.RED
         names = [INDICATORS[i].name for i in active_primaries]
         detail = f"{len(active_primaries)} primaries active (threshold {t}): {', '.join(names)}"
-    elif len(active_primaries) >= 1 and total_active >= t:
+    elif len(active_primaries) >= 1 and total_active >= t and has_concrete_evidence:
         raw_state = AlertState.AMBER
         p_names = [INDICATORS[i].name for i in active_primaries]
         s_names = [INDICATORS[i].name for i in active_secondaries]
@@ -112,7 +133,8 @@ def evaluate(
     elif len(active_primaries) >= 1:
         raw_state = AlertState.YELLOW
         names = [INDICATORS[i].name for i in active_primaries]
-        detail = f"1 primary active: {', '.join(names)}"
+        keyword_only_note = " (keyword-only evidence — capped at Yellow)" if not has_concrete_primary and len(active_primaries) >= t else ""
+        detail = f"{len(active_primaries)} primary active: {', '.join(names)}{keyword_only_note}"
     elif len(active_secondaries) >= t:
         raw_state = AlertState.YELLOW
         names = [INDICATORS[i].name for i in active_secondaries]
@@ -195,6 +217,7 @@ def _state_to_dict(state: SystemState) -> dict:
                 "last_checked": r.last_checked,
                 "feed_healthy": r.feed_healthy,
                 "is_destructive": r.is_destructive,
+                "evidence_class": r.evidence_class,
             }
             for ind_id, r in state.indicators.items()
         },
@@ -242,6 +265,7 @@ def load_previous_state() -> Optional[SystemState]:
                     last_checked=v.get("last_checked", ""),
                     feed_healthy=v.get("feed_healthy", True),
                     is_destructive=v.get("is_destructive", False),
+                    evidence_class=v.get("evidence_class", "keyword"),
                 )
         return SystemState(
             alert_state=AlertState(d["alert_state"]),

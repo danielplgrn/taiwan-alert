@@ -125,6 +125,9 @@ def collect() -> list:
         summary=cyber_summary,
         feed_healthy=any_healthy,
         is_destructive=is_destructive,
+        # Destructive cyber events (outages detected via IODA / Cloudflare Radar)
+        # are concrete signals; mere keyword chatter on TWCERT is "keyword".
+        evidence_class="concrete" if is_destructive else "keyword",
     )]
 
 

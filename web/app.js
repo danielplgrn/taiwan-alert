@@ -162,12 +162,25 @@ function renderEvidence(ind) {
     `;
   }).join("");
 
-  const rationale = ind.rationale ? `<div class="evidence-rationale">${escapeHtml(ind.rationale)}</div>` : "";
+  // For active indicators, pin the rationale visibly outside the toggle so
+  // users see the *why* without an extra tap. Verbose source quotes stay in
+  // the collapsible to avoid clutter.
+  const rationaleVisible = ind.active && ind.rationale
+    ? `<div class="evidence-rationale-visible">${escapeHtml(ind.rationale)}</div>`
+    : "";
+  const rationaleInside = (!ind.active && ind.rationale)
+    ? `<div class="evidence-rationale">${escapeHtml(ind.rationale)}</div>`
+    : "";
+
+  const toggleLabel = quotes.length > 0
+    ? `Source quotes (${quotes.length})`
+    : (ind.active ? "Why this is firing" : "Why this is inactive");
 
   return `
-    <details class="evidence-block">
-      <summary class="evidence-toggle">Why this is ${ind.active ? "firing" : "inactive"} (${quotes.length} quote${quotes.length === 1 ? "" : "s"})</summary>
-      ${rationale}
+    ${rationaleVisible}
+    <details class="evidence-block"${ind.active && quotes.length > 0 ? " open" : ""}>
+      <summary class="evidence-toggle">${toggleLabel}</summary>
+      ${rationaleInside}
       <ul class="evidence-list">${items}</ul>
     </details>
   `;

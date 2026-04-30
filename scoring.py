@@ -132,7 +132,7 @@ def evaluate(
         raw_state = AlertState.RED
         names = [INDICATORS[i].name for i in active_primaries]
         detail = f"{len(active_primaries)} primaries active (threshold {t}): {', '.join(names)}"
-    elif len(active_primaries) >= 1 and total_active >= t and has_concrete_evidence:
+    elif len(active_primaries) >= 1 and total_active >= t and has_concrete_primary:
         raw_state = AlertState.AMBER
         p_names = [INDICATORS[i].name for i in active_primaries]
         s_names = [INDICATORS[i].name for i in active_secondaries]

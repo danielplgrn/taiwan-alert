@@ -71,12 +71,29 @@ def build_message(previous: Optional[SystemState], current: SystemState) -> dict
         title = f"{TEST_PREFIX}{emoji} Taiwan Alert: {current.alert_state.value.upper()}"
         subtitle = f"Action: *{curr_label}*"
 
-    # Active indicators summary
+    # Active indicators summary — surface rationale and the first evidence quote
+    # so the Slack message conveys *what* fired, not just the boilerplate summary.
     active_lines = []
     for ind_id, ind in sorted(current.indicators.items()):
-        if ind.active:
-            conf = f" ({ind.confidence})" if ind.confidence != "none" else ""
-            active_lines.append(f"  *{ind.id}. {ind.summary or INDICATORS_NAMES.get(ind.id, '')}*{conf}")
+        if not ind.active:
+            continue
+        conf = f" ({ind.confidence})" if ind.confidence != "none" else ""
+        name = INDICATORS_NAMES.get(ind.id, "")
+        active_lines.append(f"  *{ind.id}. {name}*{conf}")
+        if ind.rationale:
+            active_lines.append(f"     {ind.rationale}")
+        elif ind.summary:
+            active_lines.append(f"     {ind.summary}")
+        quotes = getattr(ind, "evidence_quotes", None) or []
+        if quotes:
+            q = quotes[0]
+            phrase = (q.get("key_phrase") or "").strip()
+            source = q.get("source") or q.get("family") or ""
+            if phrase:
+                if len(phrase) > 200:
+                    phrase = phrase[:197] + "..."
+                tag = f" [{source}]" if source else ""
+                active_lines.append(f"     > {phrase}{tag}")
 
     active_text = "\n".join(active_lines) if active_lines else "  None"
 

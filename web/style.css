@@ -298,6 +298,16 @@ footer {
   border-left: 2px solid var(--text-muted);
   border-radius: 2px;
 }
+.evidence-rationale-visible {
+  margin: 0.5rem 0 0.25rem 0;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--text);
+  background: rgba(255,255,255,0.04);
+  border-left: 3px solid var(--amber);
+  border-radius: 2px;
+}
 .evidence-list {
   list-style: none;
   padding: 0;

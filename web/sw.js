@@ -1,11 +1,11 @@
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `tw-alert-shell-${VERSION}`;
 const DATA_CACHE = `tw-alert-data-${VERSION}`;
 const SHELL_ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=2",
-  "./app.js?v=2",
+  "./style.css?v=3",
+  "./app.js?v=3",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-maskable.svg",

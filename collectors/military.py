@@ -305,7 +305,12 @@ def _reduce_indicator(
         )
 
     # ---------- LLM-derived path ----------
-    # Filter validated evidence for this indicator
+    # Filter validated evidence for this indicator. `taiwan_relevance == "direct"`
+    # is required: tangential/unrelated evidence (e.g. INDOPACOM equipment failures,
+    # PLA Beibu Gulf drills, US carrier movements outside the Pacific) is dropped
+    # before activation logic and dashboard rendering. The LLM still extracts
+    # them — they're useful audit signal for prompt tuning — but they don't
+    # drive alerting and don't appear on indicator cards.
     indicator_evidence = [
         ev for ev in evidence
         if ev.validated
@@ -313,6 +318,7 @@ def _reduce_indicator(
         and not ev.manipulation_flag
         and ev.claim_type not in ("speculation", "unrelated")
         and ev.directness != "hypothetical"
+        and ev.taiwan_relevance == "direct"
     ]
 
     if not indicator_evidence:

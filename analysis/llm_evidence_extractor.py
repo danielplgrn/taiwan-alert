@@ -184,6 +184,7 @@ For each piece of evidence:
 5. If a chunk discusses routine PLA activity (daily ADIZ incursions, scheduled exercises, doctrine recitation), classify as `vocabulary_only` — NOT `observed_act`. PLA does these things constantly; mere occurrence is not escalation.
 6. If a chunk uses present-tense phrasing for a reported event ("ferries requisitioned in Fujian"), check whether the source is making a first-person claim or quoting an unverified report. When in doubt, choose `reported_event` over `first_person_observation`.
 7. Be strict about `taiwan_relevance: direct`. The default is `tangential` for any military/allied event you are unsure about. The user is making evacuation decisions for Taipei — only events whose Taiwan-link is unambiguous should be `direct`. A US Navy ship in the Pacific is `tangential` unless its movement is reported in connection with Taiwan. A PLA exercise is `tangential` unless the location, named target, or stated purpose ties it to Taiwan or the Strait.
+8. CONSISTENCY: your `why` and `taiwan_relevance` must agree. If your `why` says "not Taiwan-specific", "tangential", "not directly about Taiwan", "outside the Strait", "not a posture change re Taiwan", or any equivalent disclaimer, then `taiwan_relevance` MUST be `tangential` — never `direct`. Code will detect and override the contradiction, but you should resolve it yourself first.
 
 Return ONLY the JSON object specified by the schema. No prose around it."""
 
@@ -379,6 +380,33 @@ def _coerce_evidence(raw: dict) -> EvidenceRef | None:
         return None
 
 
+# Phrases that indicate the LLM itself thinks the event is NOT Taiwan-direct,
+# even if it set `taiwan_relevance: direct`. When detected in `why`, code
+# overrides the structured field down to "tangential". Belt-and-suspenders
+# for prompt-following lapses observed in production (PR #2 follow-up).
+_TANGENTIAL_MARKERS = re.compile(
+    r"\b("
+    r"not\s+taiwan[- ](?:specific|relevant|focused|directed|related)"
+    r"|tangential(?:ly)?\s+(?:to|for|relevan)"
+    r"|tangential\s+to\s+taiwan"
+    r"|not\s+(?:specifically\s+|directly\s+)?(?:about|related\s+to|tied\s+to|aimed\s+at)\s+taiwan"
+    r"|not\s+a\s+posture\s+change\s+re(?:garding)?\s+taiwan"
+    r"|outside\s+(?:the\s+)?(?:taiwan|strait)"
+    r"|no\s+(?:direct\s+)?taiwan\s+(?:link|connection|tie|nexus)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _enforce_relevance_consistency(ev: EvidenceRef) -> bool:
+    """If `why` flags tangentiality but `taiwan_relevance` says `direct`,
+    downgrade to `tangential`. Returns True if a correction was applied."""
+    if ev.taiwan_relevance == "direct" and _TANGENTIAL_MARKERS.search(ev.why or ""):
+        ev.taiwan_relevance = "tangential"
+        return True
+    return False
+
+
 def _validate_evidence(ev: EvidenceRef, chunk_lookup: dict[str, InputChunk]) -> None:
     """Mark evidence as validated/invalidated based on code-side checks."""
     if ev.indicator_id not in SUPPORTED_INDICATORS:
@@ -396,6 +424,12 @@ def _validate_evidence(ev: EvidenceRef, chunk_lookup: dict[str, InputChunk]) -> 
         if normalized_phrase and normalized_phrase not in normalized_chunk:
             ev.invalid_reason = "key_phrase not verbatim in chunk"
             return
+    if _enforce_relevance_consistency(ev):
+        log.info(
+            "Relevance consistency override: chunk=%s indicator=%d "
+            "why=%r — downgraded direct -> tangential",
+            ev.chunk_id, ev.indicator_id, (ev.why or "")[:80],
+        )
     ev.validated = True
 
 

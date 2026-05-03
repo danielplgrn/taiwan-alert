@@ -8,7 +8,7 @@
   "evaluated_at": "2026-05-03T22:27:10.549716+00:00",
   "overt_hostilities": false,
   "threshold": 2,
-  "last_alerted_state": "yellow",
+  "last_alerted_state": "red",
   "indicators": {
     "7": {
       "id": 7,

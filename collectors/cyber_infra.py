@@ -50,7 +50,22 @@ DESTRUCTIVE_KEYWORDS = [
 @safe_collect
 def collect() -> list:
     all_hits = []
-    destructive_hits = []
+    # Two distinct categories — was previously conflated as `destructive_hits`,
+    # which let any single outage source flip the indicator destructive and
+    # promote it from secondary to primary. That produced a false-positive RED
+    # on a lone IODA blip + generic "ransomware" keyword. Now:
+    #
+    #   specific_destructive — explicit Taiwan-relevant destructive keywords
+    #     (cable cut, GNSS jamming, power grid, telecom down, etc.). One hit
+    #     is sufficient for is_destructive.
+    #
+    #   outage_sources — count of independent monitors flagging an outage
+    #     (TWCERT keyword, IODA, Cloudflare Radar). At least 2 independent
+    #     outage sources are needed before is_destructive fires on outage
+    #     alone, since a single ISP/BGP blip should not signal "destructive
+    #     Taiwan-targeted attack."
+    specific_destructive: list[str] = []
+    outage_sources: list[str] = []
     source_count = 0
     any_healthy = False
 
@@ -59,10 +74,14 @@ def collect() -> list:
     if twcert_items:
         any_healthy = True
         source_count += 1
+        twcert_destructive = []
         for item in twcert_items[:10]:
             text = f"{item['title']} {item['summary']}"
             all_hits.extend(keyword_match(text, CYBER_KEYWORDS))
-            destructive_hits.extend(keyword_match(text, DESTRUCTIVE_KEYWORDS))
+            twcert_destructive.extend(keyword_match(text, DESTRUCTIVE_KEYWORDS))
+        if twcert_destructive:
+            specific_destructive.extend(twcert_destructive)
+            outage_sources.append("TWCERT")
 
     # --- Cloudflare Radar ---
     cf_outage, cf_healthy = _check_cloudflare()
@@ -71,7 +90,7 @@ def collect() -> list:
         source_count += 1
     if cf_outage:
         all_hits.append("cloudflare_outage_detected")
-        destructive_hits.append("internet_outage")
+        outage_sources.append("Cloudflare")
 
     # --- IODA ---
     ioda_outage, ioda_healthy = _check_ioda()
@@ -80,7 +99,7 @@ def collect() -> list:
         source_count += 1
     if ioda_outage:
         all_hits.append("ioda_outage_detected")
-        destructive_hits.append("internet_outage")
+        outage_sources.append("IODA")
 
     # --- Honest reporting ---
     cyber_checked = []
@@ -104,7 +123,9 @@ def collect() -> list:
     failed_str = f" Failed: {', '.join(cyber_failed)}." if cyber_failed else ""
 
     active = len(all_hits) >= 2
-    is_destructive = len(destructive_hits) >= 1
+    has_specific_destructive = len(specific_destructive) >= 1
+    has_corroborated_outage = len(set(outage_sources)) >= 2
+    is_destructive = has_specific_destructive or has_corroborated_outage
 
     if source_count == 0:
         cyber_summary = f"Could not check — all sources failed.{failed_str}"
@@ -113,7 +134,23 @@ def collect() -> list:
         if all_hits:
             details.append(f"Signals: {', '.join(sorted(set(all_hits))[:5])}")
         if is_destructive:
-            details.append("DESTRUCTIVE — escalated to Primary")
+            if has_specific_destructive:
+                kw_preview = ", ".join(sorted(set(specific_destructive))[:3])
+                details.append(
+                    f"DESTRUCTIVE — escalated to Primary "
+                    f"(Taiwan-targeted keywords: {kw_preview})"
+                )
+            else:
+                details.append(
+                    f"DESTRUCTIVE — escalated to Primary "
+                    f"(corroborated outage across {len(set(outage_sources))} sources: "
+                    f"{', '.join(sorted(set(outage_sources)))})"
+                )
+        elif outage_sources:
+            details.append(
+                f"Outage on {sorted(set(outage_sources))[0]} only — "
+                f"insufficient corroboration to mark destructive"
+            )
         cyber_summary = f"Checked {checked_str}. {' | '.join(details)}.{failed_str}"
     else:
         cyber_summary = f"Checked {checked_str} for cyberattacks, internet outages, cable disruptions. None detected.{failed_str}"
@@ -125,8 +162,8 @@ def collect() -> list:
         summary=cyber_summary,
         feed_healthy=any_healthy,
         is_destructive=is_destructive,
-        # Destructive cyber events (outages detected via IODA / Cloudflare Radar)
-        # are concrete signals; mere keyword chatter on TWCERT is "keyword".
+        # Concrete only when destructive (specific keywords or corroborated
+        # outage). Lone outage sources or generic keyword chatter stay "keyword".
         evidence_class="concrete" if is_destructive else "keyword",
     )]
 

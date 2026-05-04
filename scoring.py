@@ -56,6 +56,12 @@ class IndicatorReading:
     evidence_quotes: list[dict] = field(default_factory=list)
     rationale: str = ""                          # one-paragraph "why" for the dashboard
     manipulation_flagged_count: int = 0          # how many input chunks the LLM flagged as injection attempts
+    # How many consecutive evaluations (including this one) the indicator has
+    # been active. Computed by evaluate() from previous_state. Used by the
+    # persistence rule: weak signals (anomaly / keyword) require ≥2
+    # consecutive runs before they can drive AMBER/RED. Concrete and
+    # hostilities are immediately promotable.
+    consecutive_active_runs: int = 0
 
 
 @dataclass
@@ -71,6 +77,33 @@ class SystemState:
     overt_hostilities: bool = False
     threshold: int = 2             # active-indicator count required per promotion step
     last_alerted_state: str = ""   # alert_state.value of last successful Slack notification
+
+
+PERSISTENCE_REQUIRED_RUNS = 2
+
+
+def is_promotable(reading: IndicatorReading) -> bool:
+    """
+    Whether an active indicator can drive AMBER/RED on this evaluation.
+
+    Concrete and hostilities are always promotable — they represent observed
+    administrative acts or active military events. Anomaly-class evidence
+    (e.g. flight-density crash, MND count spike) is quantitative and noisy,
+    so requires at least two consecutive runs of activation before it can
+    contribute to AMBER/RED. Keyword evidence is never promotable past
+    YELLOW regardless of persistence.
+
+    This is the deterministic noise filter that prevents single-tick weak
+    signals from flipping the alert state to "leave/shelter" before the
+    operator can sanity-check.
+    """
+    if not reading.active:
+        return False
+    if reading.evidence_class in ("concrete", "hostilities"):
+        return True
+    if reading.evidence_class == "anomaly":
+        return reading.consecutive_active_runs >= PERSISTENCE_REQUIRED_RUNS
+    return False  # keyword
 
 
 def effective_category(reading: IndicatorReading) -> Category:
@@ -96,6 +129,16 @@ def evaluate(
     now = time.time()
     t = max(1, threshold if threshold is not None else ALERT_THRESHOLD)
 
+    # --- Compute consecutive_active_runs by comparing to previous state ---
+    prev_indicators = previous_state.indicators if previous_state else {}
+    for ind_id, reading in readings.items():
+        prev = prev_indicators.get(ind_id)
+        if reading.active:
+            prev_runs = prev.consecutive_active_runs if (prev and prev.active) else 0
+            reading.consecutive_active_runs = prev_runs + 1
+        else:
+            reading.consecutive_active_runs = 0
+
     # --- Count active primaries and secondaries ---
     active_primaries: list[int] = []
     active_secondaries: list[int] = []
@@ -112,43 +155,63 @@ def evaluate(
     total_active = len(active_primaries) + len(active_secondaries)
 
     # --- Determine raw alert state ---
-    # Max-promotion rule: keyword-only evidence cannot drive past YELLOW.
-    # RED requires at least one active indicator with concrete/anomaly/hostilities
-    # evidence. AMBER allows mixed evidence as long as ANY active primary has
-    # better-than-keyword evidence; otherwise also caps at YELLOW.
-    has_concrete_evidence = any(
-        readings[i].evidence_class in ("concrete", "anomaly", "hostilities")
-        for i in active_primaries + active_secondaries
-    )
-    has_concrete_primary = any(
-        readings[i].evidence_class in ("concrete", "anomaly", "hostilities")
-        for i in active_primaries
+    # Promotability gates AMBER/RED. Concrete and hostilities are immediately
+    # promotable. Anomaly requires PERSISTENCE_REQUIRED_RUNS consecutive runs
+    # of activation before it can promote past YELLOW. Keyword stays at
+    # YELLOW indefinitely. This is the deterministic noise filter against
+    # single-tick false positives.
+    #
+    # AMBER requires at least one PROMOTABLE primary plus any second active
+    # indicator (the corroborating second leg can be keyword-class). RED
+    # requires the threshold count of PROMOTABLE primaries.
+    promotable_primaries = [i for i in active_primaries if is_promotable(readings[i])]
+    has_promotable_primary = len(promotable_primaries) >= 1
+
+    # Audit: which active indicators are awaiting persistence
+    awaiting_persistence = [
+        INDICATORS[i].name for i in active_primaries + active_secondaries
+        if readings[i].evidence_class == "anomaly"
+        and readings[i].consecutive_active_runs < PERSISTENCE_REQUIRED_RUNS
+    ]
+    persistence_note = (
+        f" (awaiting persistence: {', '.join(awaiting_persistence)})"
+        if awaiting_persistence else ""
     )
 
     if overt_hostilities:
         raw_state = AlertState.RED
         detail = "Overt hostilities flagged"
-    elif len(active_primaries) >= t and has_concrete_primary:
+    elif len(promotable_primaries) >= t and has_promotable_primary:
         raw_state = AlertState.RED
-        names = [INDICATORS[i].name for i in active_primaries]
-        detail = f"{len(active_primaries)} primaries active (threshold {t}): {', '.join(names)}"
-    elif len(active_primaries) >= 1 and total_active >= t and has_concrete_primary:
+        names = [INDICATORS[i].name for i in promotable_primaries]
+        detail = f"{len(promotable_primaries)} promotable primaries active (threshold {t}): {', '.join(names)}"
+    elif has_promotable_primary and total_active >= t:
         raw_state = AlertState.AMBER
-        p_names = [INDICATORS[i].name for i in active_primaries]
+        p_names = [INDICATORS[i].name for i in promotable_primaries]
         s_names = [INDICATORS[i].name for i in active_secondaries]
         detail = f"Primary: {', '.join(p_names)} + Secondary: {', '.join(s_names) or '(none)'} (threshold {t})"
     elif len(active_primaries) >= 1:
         raw_state = AlertState.YELLOW
         names = [INDICATORS[i].name for i in active_primaries]
-        keyword_only_note = " (keyword-only evidence — capped at Yellow)" if not has_concrete_primary and len(active_primaries) >= t else ""
-        detail = f"{len(active_primaries)} primary active: {', '.join(names)}{keyword_only_note}"
+        cap_note = ""
+        if not has_promotable_primary and len(active_primaries) >= 1:
+            # Distinguish keyword-only from anomaly-awaiting-persistence so audit logs
+            # / tests can read the cause without parsing internal state.
+            classes = {readings[i].evidence_class for i in active_primaries}
+            if classes == {"keyword"}:
+                cap_note = " (keyword-only evidence — capped at Yellow)"
+            elif "anomaly" in classes and "keyword" in classes:
+                cap_note = " (keyword/anomaly awaiting persistence — capped at Yellow)"
+            else:
+                cap_note = " (anomaly awaiting persistence — capped at Yellow)"
+        detail = f"{len(active_primaries)} primary active: {', '.join(names)}{cap_note}{persistence_note}"
     elif len(active_secondaries) >= t:
         raw_state = AlertState.YELLOW
         names = [INDICATORS[i].name for i in active_secondaries]
-        detail = f"{len(active_secondaries)} secondaries active (threshold {t}): {', '.join(names)}"
+        detail = f"{len(active_secondaries)} secondaries active (threshold {t}): {', '.join(names)}{persistence_note}"
     else:
         raw_state = AlertState.GREEN
-        detail = f"{total_active} indicator(s) active"
+        detail = f"{total_active} indicator(s) active{persistence_note}"
 
     # --- Apply hysteresis for demotions ---
     STATE_ORDER = [AlertState.GREEN, AlertState.YELLOW, AlertState.AMBER, AlertState.RED]
@@ -228,6 +291,8 @@ def _state_to_dict(state: SystemState) -> dict:
                 "evidence_quotes": r.evidence_quotes,
                 "rationale": r.rationale,
                 "manipulation_flagged_count": r.manipulation_flagged_count,
+                "consecutive_active_runs": r.consecutive_active_runs,
+                "promotable": is_promotable(r),
             }
             for ind_id, r in state.indicators.items()
         },
@@ -279,6 +344,7 @@ def load_previous_state() -> Optional[SystemState]:
                     evidence_quotes=v.get("evidence_quotes") or [],
                     rationale=v.get("rationale", ""),
                     manipulation_flagged_count=v.get("manipulation_flagged_count", 0),
+                    consecutive_active_runs=v.get("consecutive_active_runs", 0),
                 )
         return SystemState(
             alert_state=AlertState(d["alert_state"]),

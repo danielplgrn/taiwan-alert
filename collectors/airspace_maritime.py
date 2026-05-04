@@ -25,6 +25,9 @@ from collectors.base import (
     make_reading, safe_collect, now_iso,
 )
 from config import NOTAM_API_URL, NOTAM_API_TOKEN
+from analysis.opensky_baseline import (
+    record_sample, check_low_anomaly, _taipei_hour_now,
+)
 
 log = logging.getLogger(__name__)
 
@@ -64,17 +67,32 @@ def collect() -> list:
     notam_hits, notam_healthy, notam_skipped = _check_notams()
 
     # --- Airspace: OpenSky flight density ---
+    # Diurnal-aware MAD anomaly check (analysis/opensky_baseline). Replaces the
+    # old hard-threshold (`< 20`) which falsely fired during the early-morning
+    # Taipei civil-aviation trough.
     flight_count, opensky_healthy = _check_opensky_flights()
-    # A sharp drop in civilian flights through the strait is a signal
-    # Normal: 50-150 flights visible at any time. Below 20 = anomaly.
-    flight_anomaly = flight_count is not None and flight_count < 20
+    flight_anomaly_status = "unknown"
+    flight_anomaly_explanation = ""
+    flight_anomaly_active = False
+    flight_anomaly_high = False
+    if flight_count is not None:
+        # Always record the sample so the baseline grows even on quiet days
+        try:
+            record_sample(flight_count)
+        except Exception as e:
+            log.warning("Failed to record OpenSky baseline sample: %s", e)
+        anomaly = check_low_anomaly(flight_count)
+        flight_anomaly_status = anomaly.status
+        flight_anomaly_explanation = anomaly.explanation
+        flight_anomaly_active = anomaly.status in ("low_anomaly", "high_low_anomaly")
+        flight_anomaly_high = anomaly.status == "high_low_anomaly"
 
-    airspace_active = len(notam_hits) >= 2 or flight_anomaly
+    airspace_active = len(notam_hits) >= 2 or flight_anomaly_active
     airspace_details = []
     if notam_hits:
         airspace_details.append(f"NOTAMs: {', '.join(sorted(set(notam_hits))[:3])}")
-    if flight_anomaly:
-        airspace_details.append(f"Flight density anomaly: only {flight_count} flights in strait")
+    if flight_anomaly_active:
+        airspace_details.append(flight_anomaly_explanation)
 
     # --- Honest reporting ---
     air_sources_checked = []
@@ -86,7 +104,15 @@ def collect() -> list:
     else:
         air_sources_failed.append("NOTAMs (API error)")
     if opensky_healthy:
-        air_sources_checked.append(f"OpenSky ({flight_count} flights in strait, normal: 50-150)")
+        if flight_anomaly_active:
+            air_sources_checked.append(
+                f"OpenSky ({flight_count} flights, hour {_taipei_hour_now()} Taipei)"
+            )
+        else:
+            # Surface bootstrap status / normal explanation when not firing
+            air_sources_checked.append(
+                f"OpenSky ({flight_count} flights, {flight_anomaly_status})"
+            )
     else:
         air_sources_failed.append("OpenSky (unreachable)")
 
@@ -106,7 +132,7 @@ def collect() -> list:
     #   - both = "concrete" (the stronger signal wins)
     if notam_hits:
         airspace_evidence = "concrete"
-    elif flight_anomaly:
+    elif flight_anomaly_active:
         airspace_evidence = "anomaly"
     else:
         airspace_evidence = "keyword"

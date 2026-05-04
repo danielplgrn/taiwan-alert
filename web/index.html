@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
   <title>Taiwan Strait EWS</title>
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <div id="app">
@@ -32,6 +32,13 @@
         Alert threshold: <span id="threshold-value">—</span> signals
       </span>
     </div>
+
+    <section id="advisory-panel" class="hidden">
+      <div class="advisory-header">
+        Advisory <span class="advisory-disclaimer">(model commentary, not authoritative)</span>
+      </div>
+      <ul id="advisory-list"></ul>
+    </section>
 
     <main>
       <section id="primary-section">
@@ -82,7 +89,7 @@
     </footer>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {

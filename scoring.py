@@ -77,6 +77,10 @@ class SystemState:
     overt_hostilities: bool = False
     threshold: int = 2             # active-indicator count required per promotion step
     last_alerted_state: str = ""   # alert_state.value of last successful Slack notification
+    # Read-only LLM advisory layer (analysis/advisor.py). Pure commentary;
+    # never feeds back into scoring. List of dicts:
+    #   {type, indicator_ids: [int], severity: "info"|"concern", message: str}
+    advisories: list[dict] = field(default_factory=list)
 
 
 PERSISTENCE_REQUIRED_RUNS = 2
@@ -275,6 +279,7 @@ def _state_to_dict(state: SystemState) -> dict:
         "overt_hostilities": state.overt_hostilities,
         "threshold": state.threshold,
         "last_alerted_state": state.last_alerted_state,
+        "advisories": state.advisories,
         "indicators": {
             str(ind_id): {
                 "id": r.id,
@@ -357,6 +362,7 @@ def load_previous_state() -> Optional[SystemState]:
             overt_hostilities=d.get("overt_hostilities", False),
             threshold=d.get("threshold", ALERT_THRESHOLD),
             last_alerted_state=d.get("last_alerted_state", ""),
+            advisories=d.get("advisories") or [],
             indicators=indicators,
         )
     except (json.JSONDecodeError, KeyError, ValueError):

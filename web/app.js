@@ -97,6 +97,34 @@ function renderIndicators(state) {
   renderGrid("secondary-grid", SECONDARY_IDS, indicators);
 }
 
+function renderAdvisories(state) {
+  const panel = document.getElementById("advisory-panel");
+  const list = document.getElementById("advisory-list");
+  if (!panel || !list) return;
+  list.innerHTML = "";
+  const advisories = Array.isArray(state.advisories) ? state.advisories : [];
+  if (advisories.length === 0) {
+    panel.classList.add("hidden");
+    return;
+  }
+  panel.classList.remove("hidden");
+  for (const a of advisories) {
+    const li = document.createElement("li");
+    const sev = a.severity === "concern" ? "concern" : "info";
+    li.className = `advisory-item advisory-${sev}`;
+    const ids = Array.isArray(a.indicator_ids) && a.indicator_ids.length > 0
+      ? `#${a.indicator_ids.join(", #")}`
+      : "—";
+    li.innerHTML = `
+      <span class="advisory-tag advisory-tag-${sev}">${escapeHtml(sev)}</span>
+      <span class="advisory-type">${escapeHtml(a.type || "")}</span>
+      <span class="advisory-ids">${escapeHtml(ids)}</span>
+      <div class="advisory-message">${escapeHtml(a.message || "")}</div>
+    `;
+    list.appendChild(li);
+  }
+}
+
 function renderGrid(gridId, ids, indicators) {
   const grid = document.getElementById(gridId);
   grid.innerHTML = "";
@@ -205,6 +233,7 @@ async function refresh() {
   const state = await fetchState();
   if (state) {
     renderBanner(state);
+    renderAdvisories(state);
     renderIndicators(state);
   } else {
     document.getElementById("state-detail").textContent = "Failed to load state.json";

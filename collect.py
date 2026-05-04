@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import INDICATORS, STATE_FILE, DATA_DIR, AlertState, ACTION_LABELS
 from scoring import IndicatorReading, SystemState, evaluate, save_state, load_previous_state
 from alerting import send_alert
+from analysis.advisor import generate_advisories
 
 logging.basicConfig(
     level=logging.INFO,
@@ -222,6 +223,16 @@ def main():
     current_state.last_alerted_state = (
         previous_state.last_alerted_state if previous_state else ""
     )
+
+    # Advisory LLM layer (read-only commentary). Never mutates alert_state
+    # or any indicator field; output stored as `advisories` for the dashboard
+    # and slack alert. Empty list when ADVISOR_ENABLED is unset, the API is
+    # unreachable, or the model has nothing notable to flag.
+    try:
+        current_state.advisories = generate_advisories(current_state)
+    except Exception as e:
+        log.warning("Advisor failed (non-fatal): %s", e)
+        current_state.advisories = []
 
     # Save state
     save_state(current_state)

@@ -169,6 +169,7 @@ def evaluate(
     # indicator (the corroborating second leg can be keyword-class). RED
     # requires the threshold count of PROMOTABLE primaries.
     promotable_primaries = [i for i in active_primaries if is_promotable(readings[i])]
+    promotable_secondaries = [i for i in active_secondaries if is_promotable(readings[i])]
     has_promotable_primary = len(promotable_primaries) >= 1
 
     # Audit: which active indicators are awaiting persistence
@@ -209,10 +210,25 @@ def evaluate(
             else:
                 cap_note = " (anomaly awaiting persistence — capped at Yellow)"
         detail = f"{len(active_primaries)} primary active: {', '.join(names)}{cap_note}{persistence_note}"
-    elif len(active_secondaries) >= t:
+    elif len(promotable_secondaries) >= t:
         raw_state = AlertState.YELLOW
+        names = [INDICATORS[i].name for i in promotable_secondaries]
+        detail = f"{len(promotable_secondaries)} promotable secondaries active (threshold {t}): {', '.join(names)}{persistence_note}"
+    elif len(active_secondaries) >= 1:
+        # Active secondaries exist but not enough are promotable — stay GREEN.
+        # The dashboard still shows the cards lit up; this is the deterministic
+        # noise filter that prevents weak/keyword-only secondary chatter from
+        # driving "Prepare. Confirm passports..." headlines.
+        raw_state = AlertState.GREEN
         names = [INDICATORS[i].name for i in active_secondaries]
-        detail = f"{len(active_secondaries)} secondaries active (threshold {t}): {', '.join(names)}{persistence_note}"
+        promo_note = (
+            f" ({len(promotable_secondaries)}/{len(active_secondaries)} promotable)"
+            if len(active_secondaries) > 0 else ""
+        )
+        detail = (
+            f"{len(active_secondaries)} secondary signal(s) active "
+            f"but below promotion threshold{promo_note}: {', '.join(names)}{persistence_note}"
+        )
     else:
         raw_state = AlertState.GREEN
         detail = f"{total_active} indicator(s) active{persistence_note}"

@@ -144,6 +144,7 @@ def merge_with_previous(
                     evidence_quotes=prev_data.get("evidence_quotes") or [],
                     rationale=prev_data.get("rationale", ""),
                     manipulation_flagged_count=prev_data.get("manipulation_flagged_count", 0),
+                    consecutive_active_runs=prev_data.get("consecutive_active_runs", 0),
                 )
             elif isinstance(prev_data, IndicatorReading):
                 new_readings[ind_id] = prev_data

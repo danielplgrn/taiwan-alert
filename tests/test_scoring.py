@@ -271,13 +271,36 @@ def test_anomaly_primary_alone_drives_yellow_not_red():
     assert state.alert_state == AlertState.YELLOW
 
 
-def test_two_anomaly_primaries_is_red():
-    """Two anomaly-class primaries promote correctly to RED (anomaly counts as concrete)."""
+def test_two_anomaly_primaries_require_persistence_for_red():
+    """Two anomaly-class primaries should NOT immediately promote to RED — anomaly
+    requires PERSISTENCE_REQUIRED_RUNS consecutive runs before it can drive the
+    alert state past YELLOW. Single-tick anomalies cap at YELLOW."""
     readings = _all_inactive()
     readings[1] = _reading(1, active=True, evidence_class="anomaly")
     readings[3] = _reading(3, active=True, evidence_class="anomaly")
     state = evaluate(readings)
-    assert state.alert_state == AlertState.RED
+    # Fresh anomalies (consecutive_active_runs=1 after evaluate) cap at YELLOW.
+    assert state.alert_state == AlertState.YELLOW
+    assert "awaiting persistence" in state.score_detail.lower()
+
+
+def test_two_anomaly_primaries_promote_to_red_after_persistence():
+    """After PERSISTENCE_REQUIRED_RUNS=2 consecutive runs of anomaly activation,
+    two anomaly-class primaries DO promote to RED."""
+    from scoring import SystemState
+    # First tick: anomaly fires, cap at YELLOW
+    readings = _all_inactive()
+    readings[1] = _reading(1, active=True, evidence_class="anomaly")
+    readings[3] = _reading(3, active=True, evidence_class="anomaly")
+    state1 = evaluate(readings)
+    assert state1.alert_state == AlertState.YELLOW
+
+    # Second tick: same indicators still active, persistence threshold met
+    readings2 = _all_inactive()
+    readings2[1] = _reading(1, active=True, evidence_class="anomaly")
+    readings2[3] = _reading(3, active=True, evidence_class="anomaly")
+    state2 = evaluate(readings2, previous_state=state1)
+    assert state2.alert_state == AlertState.RED
 
 
 def test_overt_hostilities_overrides_keyword_cap():

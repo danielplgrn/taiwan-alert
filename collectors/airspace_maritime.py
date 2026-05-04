@@ -141,7 +141,7 @@ def collect() -> list:
     readings.append(make_reading(
         indicator_id=3,
         active=airspace_active,
-        confidence=assign_confidence(len(notam_hits) + (1 if flight_anomaly else 0)),
+        confidence=assign_confidence(len(notam_hits) + (1 if flight_anomaly_active else 0)),
         summary=air_summary,
         feed_healthy=opensky_healthy or notam_healthy,
         evidence_class=airspace_evidence,

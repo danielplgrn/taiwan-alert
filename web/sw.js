@@ -1,4 +1,4 @@
-const VERSION = "v3";
+const VERSION = "v4";
 const SHELL_CACHE = `tw-alert-shell-${VERSION}`;
 const DATA_CACHE = `tw-alert-data-${VERSION}`;
 const SHELL_ASSETS = [
@@ -37,23 +37,41 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
+  if (url.origin !== location.origin) return;
+
   const isStateJson = url.pathname.endsWith("state.json");
+  // app.js, style.css, index.html, sw.js itself — network-first with cache
+  // fallback so version bumps propagate within a single page load. Otherwise
+  // installed PWAs / cached browser sessions would stick on the previous
+  // bundle until the SW happens to be re-fetched.
+  const isShellEntry = (
+    isStateJson === false && (
+      url.pathname.endsWith("app.js") ||
+      url.pathname.endsWith("style.css") ||
+      url.pathname.endsWith("index.html") ||
+      url.pathname.endsWith("sw.js") ||
+      url.pathname === "/" || url.pathname.endsWith("/")
+    )
+  );
 
   if (isStateJson) {
-    event.respondWith(networkFirst());
-  } else if (url.origin === location.origin) {
+    event.respondWith(networkFirst(STATE_CACHE_KEY, DATA_CACHE));
+  } else if (isShellEntry) {
+    event.respondWith(networkFirst(req, SHELL_CACHE));
+  } else {
+    // icons, manifest, fonts — rarely change; cache-first is fine
     event.respondWith(cacheFirst(req));
   }
 });
 
-async function networkFirst() {
-  const cache = await caches.open(DATA_CACHE);
+async function networkFirst(req, cacheName) {
+  const cache = await caches.open(cacheName);
   try {
-    const fresh = await fetch(STATE_CACHE_KEY, { cache: "no-store" });
-    if (fresh.ok) cache.put(STATE_CACHE_KEY, fresh.clone());
+    const fresh = await fetch(req, { cache: "no-store" });
+    if (fresh.ok) cache.put(req, fresh.clone());
     return fresh;
   } catch {
-    const cached = await cache.match(STATE_CACHE_KEY);
+    const cached = await cache.match(req);
     if (cached) return cached;
     return new Response(JSON.stringify({ error: "offline" }), {
       status: 503,

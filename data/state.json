@@ -1,14 +1,14 @@
 {
-  "alert_state": "red",
-  "alert_label": "Shelter",
-  "score_detail": "1 indicator(s) active (cooldown: holding red for 8.9h more before downgrading)",
+  "alert_state": "green",
+  "alert_label": "Monitor",
+  "score_detail": "Cooldown reset after false-positive RED (PR #4-#6 merged); awaiting next cron evaluation",
   "degraded": false,
   "degraded_feeds": [],
-  "state_since": 1777847209.8980184,
+  "state_since": 0,
   "evaluated_at": "2026-05-04T01:35:43.174438+00:00",
   "overt_hostilities": false,
   "threshold": 2,
-  "last_alerted_state": "red",
+  "last_alerted_state": "green",
   "advisories": [],
   "indicators": {
     "1": {
@@ -178,7 +178,7 @@
       "name": "Cyber & Infrastructure",
       "description": "Cyberattacks on Taiwan infra, cable cuts, GNSS jamming",
       "category": "secondary",
-      "active": true,
+      "active": false,
       "confidence": "high",
       "summary": "Checked TWCERT, Cloudflare Radar, IODA. Signals: ioda_outage_detected, ransomware | Outage on IODA only \u2014 insufficient corroboration to mark destructive.",
       "last_checked": "2026-05-04T01:34:50.609232+00:00",
@@ -188,7 +188,7 @@
       "evidence_quotes": [],
       "rationale": "",
       "manipulation_flagged_count": 0,
-      "consecutive_active_runs": 8,
+      "consecutive_active_runs": 0,
       "promotable": false
     }
   }

@@ -53,6 +53,7 @@ jobs:
           NOTAM_API_TOKEN: ${{ secrets.NOTAM_API_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TAIWAN_ALERT_THRESHOLD: ${{ vars.TAIWAN_ALERT_THRESHOLD || '2' }}
+          ADVISOR_ENABLED: "true"
         run: |
           for g in ${{ steps.due.outputs.groups }}; do
             echo "::group::collect --group $g"

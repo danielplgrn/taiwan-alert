@@ -1,11 +1,13 @@
 {
-  "alert_state": "yellow",
-  "alert_label": "Prepare",
-  "score_detail": "2 secondaries active (threshold 2): Allied Response, Cyber & Infrastructure",
-  "degraded": false,
-  "degraded_feeds": [],
-  "state_since": 1777859189.398165,
-  "evaluated_at": "2026-05-04T01:46:29.398190+00:00",
+  "alert_state": "green",
+  "alert_label": "Monitor",
+  "score_detail": "1 secondary signal(s) active but below promotion threshold (0/1 promotable): Cyber & Infrastructure",
+  "degraded": true,
+  "degraded_feeds": [
+    "Airspace Control"
+  ],
+  "state_since": 1777880548.0028262,
+  "evaluated_at": "2026-05-04T07:43:47.616377+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "green",
@@ -15,16 +17,16 @@
       "indicator_ids": [
         6
       ],
-      "severity": "concern",
-      "message": "Cyber & Infrastructure has been active 4 consecutive runs on a single IODA outage plus a generic 'ransomware' keyword, with no Taiwan-targeting corroboration from TWCERT or Cloudflare Radar. Worth checking whether this is a stuck/low-specificity signal inflating the secondary count."
+      "severity": "info",
+      "message": "Cyber & Infrastructure has been active for 8 consecutive runs on a single IODA outage plus generic 'ransomware' keyword, with no Taiwan-targeting corroboration noted. Worth checking whether this is a stale/persistent signal rather than a fresh indicator."
     },
     {
-      "type": "indicator_concern",
+      "type": "context_note",
       "indicator_ids": [
-        8
+        3
       ],
       "severity": "info",
-      "message": "Allied Response is active solely on a single Japanese destroyer Taiwan Strait transit reported via one OSINT account; such transits occur periodically and may not represent an escalatory posture shift."
+      "message": "Airspace Control feed is degraded (NOTAM API unconfigured, OpenSky unreachable), so a primary indicator is effectively unobservable this cycle."
     }
   ],
   "indicators": {
@@ -36,7 +38,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked X/OSINT accounts, Taiwan MND. No qualifying evidence (after dropping speculation/hypothetical/manipulation chunks). Failed: Japan MOD (blocked).",
-      "last_checked": "2026-05-04T01:46:29.398055+00:00",
+      "last_checked": "2026-05-04T07:43:47.616257+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -54,7 +56,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked X/OSINT accounts, Taiwan MND. No qualifying evidence (after dropping speculation/hypothetical/manipulation chunks). Failed: Japan MOD (blocked).",
-      "last_checked": "2026-05-04T01:46:29.398076+00:00",
+      "last_checked": "2026-05-04T07:43:47.616277+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -69,28 +71,18 @@
       "name": "Allied Response",
       "description": "US/Japan military repositioning, posture changes",
       "category": "secondary",
-      "active": true,
-      "confidence": "medium",
-      "summary": "Observed act corroborated by tier-1 OSINT. Checked X/OSINT accounts, Taiwan MND. Failed: Japan MOD (blocked).",
-      "last_checked": "2026-05-04T01:46:29.398103+00:00",
+      "active": false,
+      "confidence": "none",
+      "summary": "Checked X/OSINT accounts, Taiwan MND. No qualifying evidence (after dropping speculation/hypothetical/manipulation chunks). Failed: Japan MOD (blocked).",
+      "last_checked": "2026-05-04T07:43:47.616288+00:00",
       "feed_healthy": true,
       "is_destructive": false,
-      "evidence_class": "concrete",
-      "evidence_quotes": [
-        {
-          "chunk_id": "c052",
-          "source": "osint:mt_anderson",
-          "family": "OSINT_TIER1",
-          "key_phrase": "the Murasame-class destroyer JS Ikazuchi (DD-107) transited the Taiwan Strait on April",
-          "claim_type": "observed_act",
-          "directness": "reported_event",
-          "why": "Japanese destroyer Taiwan Strait transit is a direct allied posture signal vis-a-vis Taiwan."
-        }
-      ],
-      "rationale": "[reported_event/observed_act] Japanese destroyer Taiwan Strait transit is a direct allied posture signal vis-a-vis Taiwan.",
+      "evidence_class": "keyword",
+      "evidence_quotes": [],
+      "rationale": "",
       "manipulation_flagged_count": 0,
-      "consecutive_active_runs": 1,
-      "promotable": true
+      "consecutive_active_runs": 0,
+      "promotable": false
     },
     "9": {
       "id": 9,
@@ -100,7 +92,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Xinhua, Global Times, Focus Taiwan, Taipei Times for rhetoric shifts or political crisis keywords. Normal levels (3 of 4 feeds reachable).",
-      "last_checked": "2026-05-04T01:45:49.649401+00:00",
+      "last_checked": "2026-05-04T07:43:01.995876+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -118,7 +110,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked US, UK, Japan, Australia travel advisories for Taiwan. All at normal levels (3 of 4 sources reachable).",
-      "last_checked": "2026-05-04T01:45:37.792286+00:00",
+      "last_checked": "2026-05-04T07:42:52.507210+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -136,7 +128,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked TWD/USD exchange rate and TAIEX index via Yahoo Finance. Both within normal volatility range.",
-      "last_checked": "2026-05-04T01:45:41.065889+00:00",
+      "last_checked": "2026-05-04T07:42:53.823208+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -153,9 +145,9 @@
       "category": "primary",
       "active": false,
       "confidence": "none",
-      "summary": "Checked OpenSky (57 flights, unknown). No military closures or flight rerouting anomalies. Failed: NOTAMs (NOTAM_API_URL not configured).",
-      "last_checked": "2026-05-04T01:45:06.262970+00:00",
-      "feed_healthy": true,
+      "summary": "Could not check \u2014 all sources failed. Failed: NOTAMs (NOTAM_API_URL not configured), OpenSky (unreachable).",
+      "last_checked": "2026-05-04T07:42:20.543029+00:00",
+      "feed_healthy": false,
       "is_destructive": false,
       "evidence_class": "keyword",
       "evidence_quotes": [],
@@ -172,7 +164,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked China Maritime Safety Administration for exclusion zones, shipping restrictions, fishing fleet recalls. None found.",
-      "last_checked": "2026-05-04T01:45:08.665823+00:00",
+      "last_checked": "2026-05-04T07:42:22.716797+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -190,7 +182,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Taiwan MND, Focus Taiwan for alert-level changes, leave cancellations, reserve activations. None found.",
-      "last_checked": "2026-05-04T01:45:11.100367+00:00",
+      "last_checked": "2026-05-04T07:42:25.855217+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -208,14 +200,14 @@
       "active": true,
       "confidence": "high",
       "summary": "Checked TWCERT, Cloudflare Radar, IODA. Signals: ioda_outage_detected, ransomware | Outage on IODA only \u2014 insufficient corroboration to mark destructive.",
-      "last_checked": "2026-05-04T01:45:13.578152+00:00",
+      "last_checked": "2026-05-04T07:42:28.002772+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
       "evidence_quotes": [],
       "rationale": "",
       "manipulation_flagged_count": 0,
-      "consecutive_active_runs": 4,
+      "consecutive_active_runs": 8,
       "promotable": false
     }
   }

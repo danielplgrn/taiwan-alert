@@ -2,23 +2,33 @@
   "alert_state": "green",
   "alert_label": "Monitor",
   "score_detail": "0 indicator(s) active",
-  "degraded": false,
-  "degraded_feeds": [],
+  "degraded": true,
+  "degraded_feeds": [
+    "Airspace Control"
+  ],
   "state_since": 1777880548.0028262,
-  "evaluated_at": "2026-05-06T20:59:18.100935+00:00",
+  "evaluated_at": "2026-05-07T00:07:33.285495+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "green",
   "advisories": [
     {
-      "type": "context_note",
+      "type": "indicator_concern",
+      "indicator_ids": [
+        3
+      ],
+      "severity": "concern",
+      "message": "Airspace Control is inactive but all its sources failed (NOTAM API unconfigured, OpenSky unreachable). Treat as no-signal rather than negative evidence."
+    },
+    {
+      "type": "cross_indicator",
       "indicator_ids": [
         1,
         2,
         8
       ],
       "severity": "info",
-      "message": "Japan MOD source is blocked across Force Concentration, Logistics, and Allied Response collectors, and NOTAM API is not configured for Airspace Control. The 'green' state rests on the remaining sources; degraded flag is False but coverage is partially reduced."
+      "message": "Force Concentration, Logistics, and Allied Response all rely on the same X/OSINT + Taiwan MND check with Japan MOD blocked, so their 'inactive' findings share a common collector dependency."
     }
   ],
   "indicators": {
@@ -30,7 +40,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Xinhua, Global Times, Focus Taiwan, Taipei Times for rhetoric shifts or political crisis keywords. Normal levels (3 of 4 feeds reachable).",
-      "last_checked": "2026-05-06T20:59:18.100865+00:00",
+      "last_checked": "2026-05-07T00:07:33.285435+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -48,7 +58,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked US, UK, Japan, Australia travel advisories for Taiwan. All at normal levels (3 of 4 sources reachable).",
-      "last_checked": "2026-05-06T20:59:09.147178+00:00",
+      "last_checked": "2026-05-07T00:07:21.782378+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -66,7 +76,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked TWD/USD exchange rate and TAIEX index via Yahoo Finance. Both within normal volatility range.",
-      "last_checked": "2026-05-06T20:59:10.788837+00:00",
+      "last_checked": "2026-05-07T00:07:23.864097+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -83,9 +93,9 @@
       "category": "primary",
       "active": false,
       "confidence": "none",
-      "summary": "Checked OpenSky (25 flights, unknown). No military closures or flight rerouting anomalies. Failed: NOTAMs (NOTAM_API_URL not configured).",
-      "last_checked": "2026-05-06T20:58:42.699587+00:00",
-      "feed_healthy": true,
+      "summary": "Could not check \u2014 all sources failed. Failed: NOTAMs (NOTAM_API_URL not configured), OpenSky (unreachable).",
+      "last_checked": "2026-05-07T00:06:49.440817+00:00",
+      "feed_healthy": false,
       "is_destructive": false,
       "evidence_class": "keyword",
       "evidence_quotes": [],
@@ -102,7 +112,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked China Maritime Safety Administration for exclusion zones, shipping restrictions, fishing fleet recalls. None found.",
-      "last_checked": "2026-05-06T20:58:44.293092+00:00",
+      "last_checked": "2026-05-07T00:06:52.280372+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -120,7 +130,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Taiwan MND, Focus Taiwan for alert-level changes, leave cancellations, reserve activations. None found.",
-      "last_checked": "2026-05-06T20:58:45.811996+00:00",
+      "last_checked": "2026-05-07T00:06:54.796158+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -138,7 +148,7 @@
       "active": false,
       "confidence": "high",
       "summary": "Checked TWCERT, Cloudflare Radar, IODA for cyberattacks, internet outages, cable disruptions. None detected.",
-      "last_checked": "2026-05-06T20:58:47.514182+00:00",
+      "last_checked": "2026-05-07T00:06:57.026891+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",

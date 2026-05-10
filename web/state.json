@@ -2,14 +2,24 @@
   "alert_state": "green",
   "alert_label": "Monitor",
   "score_detail": "0 indicator(s) active",
-  "degraded": false,
-  "degraded_feeds": [],
+  "degraded": true,
+  "degraded_feeds": [
+    "Airspace Control"
+  ],
   "state_since": 1777880548.0028262,
-  "evaluated_at": "2026-05-10T05:08:13.415490+00:00",
+  "evaluated_at": "2026-05-10T07:41:16.590950+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "green",
   "advisories": [
+    {
+      "type": "indicator_concern",
+      "indicator_ids": [
+        3
+      ],
+      "severity": "concern",
+      "message": "Airspace Control could not be evaluated: NOTAM API not configured and OpenSky unreachable. With this primary indicator effectively blind, a green state may understate uncertainty."
+    },
     {
       "type": "context_note",
       "indicator_ids": [
@@ -18,10 +28,28 @@
         8
       ],
       "severity": "info",
-      "message": "Japan MOD source is blocked across three indicators (Force Concentration, Logistics, Allied Response); if this persists, allied-response signal coverage is partially degraded even though the engine reports green."
+      "message": "Three indicators (Force Concentration, Logistics, Allied Response) all rely on the same X/OSINT + Taiwan MND pipeline with Japan MOD blocked; a single collector issue would silently suppress all three."
     }
   ],
   "indicators": {
+    "9": {
+      "id": 9,
+      "name": "Rhetoric & Political Pressure",
+      "description": "State media narrative shift, political crisis, coercion escalation",
+      "category": "secondary",
+      "active": false,
+      "confidence": "none",
+      "summary": "Checked Xinhua, Global Times, Focus Taiwan, Taipei Times for rhetoric shifts or political crisis keywords. Normal levels (3 of 4 feeds reachable).",
+      "last_checked": "2026-05-10T07:41:16.590883+00:00",
+      "feed_healthy": true,
+      "is_destructive": false,
+      "evidence_class": "keyword",
+      "evidence_quotes": [],
+      "rationale": "",
+      "manipulation_flagged_count": 0,
+      "consecutive_active_runs": 0,
+      "promotable": false
+    },
     "7": {
       "id": 7,
       "name": "Diplomatic Signals",
@@ -30,7 +58,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked US, UK, Japan, Australia travel advisories for Taiwan. All at normal levels (3 of 4 sources reachable).",
-      "last_checked": "2026-05-10T05:08:11.480756+00:00",
+      "last_checked": "2026-05-10T07:41:07.196650+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -48,7 +76,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked TWD/USD exchange rate and TAIEX index via Yahoo Finance. Both within normal volatility range.",
-      "last_checked": "2026-05-10T05:08:13.415314+00:00",
+      "last_checked": "2026-05-10T07:41:08.878164+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -65,9 +93,9 @@
       "category": "primary",
       "active": false,
       "confidence": "none",
-      "summary": "Checked OpenSky (56 flights, unknown). No military closures or flight rerouting anomalies. Failed: NOTAMs (NOTAM_API_URL not configured).",
-      "last_checked": "2026-05-10T05:07:41.686010+00:00",
-      "feed_healthy": true,
+      "summary": "Could not check \u2014 all sources failed. Failed: NOTAMs (NOTAM_API_URL not configured), OpenSky (unreachable).",
+      "last_checked": "2026-05-10T07:40:35.604285+00:00",
+      "feed_healthy": false,
       "is_destructive": false,
       "evidence_class": "keyword",
       "evidence_quotes": [],
@@ -84,7 +112,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked China Maritime Safety Administration for exclusion zones, shipping restrictions, fishing fleet recalls. None found.",
-      "last_checked": "2026-05-10T05:07:44.589560+00:00",
+      "last_checked": "2026-05-10T07:40:39.071806+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -102,7 +130,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Taiwan MND, Focus Taiwan for alert-level changes, leave cancellations, reserve activations. None found.",
-      "last_checked": "2026-05-10T05:07:46.788036+00:00",
+      "last_checked": "2026-05-10T07:40:41.918687+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -120,25 +148,7 @@
       "active": false,
       "confidence": "high",
       "summary": "Checked TWCERT, Cloudflare Radar, IODA for cyberattacks, internet outages, cable disruptions. None detected.",
-      "last_checked": "2026-05-10T05:07:48.842973+00:00",
-      "feed_healthy": true,
-      "is_destructive": false,
-      "evidence_class": "keyword",
-      "evidence_quotes": [],
-      "rationale": "",
-      "manipulation_flagged_count": 0,
-      "consecutive_active_runs": 0,
-      "promotable": false
-    },
-    "9": {
-      "id": 9,
-      "name": "Rhetoric & Political Pressure",
-      "description": "State media narrative shift, political crisis, coercion escalation",
-      "category": "secondary",
-      "active": false,
-      "confidence": "none",
-      "summary": "Checked Xinhua, Global Times, Focus Taiwan, Taipei Times for rhetoric shifts or political crisis keywords. Normal levels (3 of 4 feeds reachable).",
-      "last_checked": "2026-05-10T01:23:44.846122+00:00",
+      "last_checked": "2026-05-10T07:40:44.179866+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",

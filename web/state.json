@@ -2,12 +2,10 @@
   "alert_state": "green",
   "alert_label": "Monitor",
   "score_detail": "1 secondary signal(s) active but below promotion threshold (1/1 promotable): Allied Response",
-  "degraded": true,
-  "degraded_feeds": [
-    "Airspace Control"
-  ],
+  "degraded": false,
+  "degraded_feeds": [],
   "state_since": 1777880548.0028262,
-  "evaluated_at": "2026-05-13T01:26:10.324316+00:00",
+  "evaluated_at": "2026-05-13T05:30:24.224748+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "green",
@@ -18,36 +16,10 @@
         8
       ],
       "severity": "concern",
-      "message": "Allied Response has been active for 12 consecutive runs on routine arms-sales talking points at a Trump-Xi summit, which is diplomatic business-as-usual rather than an allied reaction to a crisis. Consider whether this indicator is stuck on baseline US-Taiwan policy discussion rather than detecting a genuine allied mobilization signal."
-    },
-    {
-      "type": "context_note",
-      "indicator_ids": [
-        3
-      ],
-      "severity": "info",
-      "message": "Airspace Control is degraded (NOTAM API unconfigured, OpenSky unreachable), so a key primary indicator is effectively blind; absence of activation there carries less weight than usual."
+      "message": "Allied Response has been active 14 consecutive runs on routine arms-sales summit discussion language, suggesting the indicator may be stuck on a persistent background signal rather than a new allied mobilization."
     }
   ],
   "indicators": {
-    "9": {
-      "id": 9,
-      "name": "Rhetoric & Political Pressure",
-      "description": "State media narrative shift, political crisis, coercion escalation",
-      "category": "secondary",
-      "active": false,
-      "confidence": "none",
-      "summary": "Checked Xinhua, Global Times, Focus Taiwan, Taipei Times for rhetoric shifts or political crisis keywords. Normal levels (3 of 4 feeds reachable).",
-      "last_checked": "2026-05-13T01:26:10.324238+00:00",
-      "feed_healthy": true,
-      "is_destructive": false,
-      "evidence_class": "keyword",
-      "evidence_quotes": [],
-      "rationale": "",
-      "manipulation_flagged_count": 0,
-      "consecutive_active_runs": 0,
-      "promotable": false
-    },
     "7": {
       "id": 7,
       "name": "Diplomatic Signals",
@@ -56,7 +28,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked US, UK, Japan, Australia travel advisories for Taiwan. All at normal levels (3 of 4 sources reachable).",
-      "last_checked": "2026-05-13T01:26:01.027302+00:00",
+      "last_checked": "2026-05-13T05:30:21.014070+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -74,7 +46,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked TWD/USD exchange rate and TAIEX index via Yahoo Finance. Both within normal volatility range.",
-      "last_checked": "2026-05-13T01:26:03.048584+00:00",
+      "last_checked": "2026-05-13T05:30:24.224576+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -91,9 +63,9 @@
       "category": "primary",
       "active": false,
       "confidence": "none",
-      "summary": "Could not check \u2014 all sources failed. Failed: NOTAMs (NOTAM_API_URL not configured), OpenSky (unreachable).",
-      "last_checked": "2026-05-13T01:25:31.149975+00:00",
-      "feed_healthy": false,
+      "summary": "Checked OpenSky (65 flights, unknown). No military closures or flight rerouting anomalies. Failed: NOTAMs (NOTAM_API_URL not configured).",
+      "last_checked": "2026-05-13T05:29:48.127064+00:00",
+      "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
       "evidence_quotes": [],
@@ -110,7 +82,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked China Maritime Safety Administration for exclusion zones, shipping restrictions, fishing fleet recalls. None found.",
-      "last_checked": "2026-05-13T01:25:33.285435+00:00",
+      "last_checked": "2026-05-13T05:29:50.324130+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -128,7 +100,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Taiwan MND, Focus Taiwan for alert-level changes, leave cancellations, reserve activations. None found.",
-      "last_checked": "2026-05-13T01:25:36.152423+00:00",
+      "last_checked": "2026-05-13T05:29:52.474475+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -146,7 +118,25 @@
       "active": false,
       "confidence": "high",
       "summary": "Checked TWCERT, Cloudflare Radar, IODA for cyberattacks, internet outages, cable disruptions. None detected.",
-      "last_checked": "2026-05-13T01:25:38.374970+00:00",
+      "last_checked": "2026-05-13T05:29:54.134671+00:00",
+      "feed_healthy": true,
+      "is_destructive": false,
+      "evidence_class": "keyword",
+      "evidence_quotes": [],
+      "rationale": "",
+      "manipulation_flagged_count": 0,
+      "consecutive_active_runs": 0,
+      "promotable": false
+    },
+    "9": {
+      "id": 9,
+      "name": "Rhetoric & Political Pressure",
+      "description": "State media narrative shift, political crisis, coercion escalation",
+      "category": "secondary",
+      "active": false,
+      "confidence": "none",
+      "summary": "Checked Xinhua, Global Times, Focus Taiwan, Taipei Times for rhetoric shifts or political crisis keywords. Normal levels (3 of 4 feeds reachable).",
+      "last_checked": "2026-05-13T01:26:10.324238+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -217,7 +207,7 @@
       ],
       "rationale": "[reported_event/observed_act] US statement/action specifically about Taiwan arms sales raised at Trump-Xi summit; direct Taiwan relevance.",
       "manipulation_flagged_count": 0,
-      "consecutive_active_runs": 12,
+      "consecutive_active_runs": 14,
       "promotable": true
     }
   }

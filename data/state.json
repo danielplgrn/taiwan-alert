@@ -2,33 +2,24 @@
   "alert_state": "green",
   "alert_label": "Monitor",
   "score_detail": "0 indicator(s) active",
-  "degraded": true,
-  "degraded_feeds": [
-    "Airspace Control"
-  ],
+  "degraded": false,
+  "degraded_feeds": [],
   "state_since": 1777880548.0028262,
-  "evaluated_at": "2026-05-17T21:04:26.502705+00:00",
+  "evaluated_at": "2026-05-17T22:28:49.595751+00:00",
   "overt_hostilities": false,
   "threshold": 2,
   "last_alerted_state": "green",
   "advisories": [
     {
-      "type": "indicator_concern",
-      "indicator_ids": [
-        3
-      ],
-      "severity": "concern",
-      "message": "Airspace Control could not be evaluated at all \u2014 both NOTAM API and OpenSky failed. A real escalation would likely show first in airspace signals, so this blind spot materially weakens the green state."
-    },
-    {
       "type": "context_note",
       "indicator_ids": [
         1,
         2,
+        3,
         8
       ],
       "severity": "info",
-      "message": "Japan MOD is blocked across three indicators (Force Concentration, Logistics, Allied Response), reducing corroboration capacity for any PLA activity east/northeast of Taiwan."
+      "message": "Japan MOD source is blocked across multiple indicators and NOTAM API is unconfigured; collector coverage is partially degraded even though the engine did not flag degraded=True."
     }
   ],
   "indicators": {
@@ -40,7 +31,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked US, UK, Japan, Australia travel advisories for Taiwan. All at normal levels (3 of 4 sources reachable).",
-      "last_checked": "2026-05-17T21:04:24.353171+00:00",
+      "last_checked": "2026-05-17T22:28:48.221376+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -58,7 +49,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked TWD/USD exchange rate and TAIEX index via Yahoo Finance. Both within normal volatility range.",
-      "last_checked": "2026-05-17T21:04:26.502531+00:00",
+      "last_checked": "2026-05-17T22:28:49.595598+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -75,9 +66,9 @@
       "category": "primary",
       "active": false,
       "confidence": "none",
-      "summary": "Could not check \u2014 all sources failed. Failed: NOTAMs (NOTAM_API_URL not configured), OpenSky (unreachable).",
-      "last_checked": "2026-05-17T21:03:52.814864+00:00",
-      "feed_healthy": false,
+      "summary": "Checked OpenSky (12 flights, unknown). No military closures or flight rerouting anomalies. Failed: NOTAMs (NOTAM_API_URL not configured).",
+      "last_checked": "2026-05-17T22:28:17.429279+00:00",
+      "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
       "evidence_quotes": [],
@@ -94,7 +85,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked China Maritime Safety Administration for exclusion zones, shipping restrictions, fishing fleet recalls. None found.",
-      "last_checked": "2026-05-17T21:03:55.608100+00:00",
+      "last_checked": "2026-05-17T22:28:20.032224+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -112,7 +103,7 @@
       "active": false,
       "confidence": "none",
       "summary": "Checked Taiwan MND, Focus Taiwan for alert-level changes, leave cancellations, reserve activations. None found.",
-      "last_checked": "2026-05-17T21:03:58.114538+00:00",
+      "last_checked": "2026-05-17T22:28:22.673559+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
@@ -130,7 +121,7 @@
       "active": false,
       "confidence": "high",
       "summary": "Checked TWCERT, Cloudflare Radar, IODA for cyberattacks, internet outages, cable disruptions. None detected.",
-      "last_checked": "2026-05-17T21:04:00.098809+00:00",
+      "last_checked": "2026-05-17T22:28:24.847034+00:00",
       "feed_healthy": true,
       "is_destructive": false,
       "evidence_class": "keyword",
